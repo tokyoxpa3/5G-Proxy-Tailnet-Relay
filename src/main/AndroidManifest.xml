@@ -29,5 +29,34 @@
             android:foregroundServiceType="connectedDevice"
             android:enabled="true"
             android:exported="false" />
+
+        <!-- [IP 輪替] 預設數位助理：唯一不需 root 的飛航模式切換途徑 -->
+        <service
+            android:name=".AirplaneAssistant"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/assistant" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".AirplaneSessionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true" />
+
+        <service
+            android:name=".StubRecognitionService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/recognizer" />
+        </service>
     </application>
 </manifest>

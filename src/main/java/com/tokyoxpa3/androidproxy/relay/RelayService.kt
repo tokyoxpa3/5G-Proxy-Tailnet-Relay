@@ -49,6 +49,9 @@ class RelayService : Service() {
         const val ACTION_STOP = "com.tokyoxpa3.androidproxy.relay.STOP"
         const val EXTRA_PORT = "port"
         const val DEFAULT_PORT = 1080
+        const val DEFAULT_CONTROL_PORT = 8081
+
+        @Volatile var rotator: IpRotator? = null
 
         @Volatile var isRunning = false
         @Volatile var listenAddrs: List<String> = emptyList()
@@ -56,6 +59,7 @@ class RelayService : Service() {
     }
 
     @Volatile private var port = DEFAULT_PORT
+    @Volatile private var controlPort = DEFAULT_CONTROL_PORT
     @Volatile private var refreshThread: Thread? = null
     private val listeners = ConcurrentHashMap<String, ServerSocket>()
     private val pool = Executors.newCachedThreadPool { r -> Thread(r, "relay-io").apply { isDaemon = true } }
@@ -68,13 +72,19 @@ class RelayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        val prefs = getSharedPreferences("relay", Context.MODE_PRIVATE)
         val requested = intent?.getIntExtra(EXTRA_PORT, -1) ?: -1
-        val newPort = if (requested > 0) requested
-            else getSharedPreferences("relay", Context.MODE_PRIVATE).getInt("port", DEFAULT_PORT)
+        val newPort = if (requested > 0) requested else prefs.getInt("port", DEFAULT_PORT)
+        val newControlPort = prefs.getInt("control_port", DEFAULT_CONTROL_PORT)
         startInForeground(newPort)
-        if (isRunning && newPort == port) return START_STICKY
+        if (isRunning && newPort == port && newControlPort == controlPort) return START_STICKY
         stopRelay()
         port = newPort
+        controlPort = newControlPort
+        // 輪替可能跨越服務重建，埠號一律從設定讀，不抓本實例的欄位
+        if (rotator == null) rotator = IpRotator(applicationContext) {
+            applicationContext.getSharedPreferences("relay", Context.MODE_PRIVATE).getInt("port", DEFAULT_PORT)
+        }
         startRelay()
         return START_STICKY
     }
@@ -143,41 +153,100 @@ class RelayService : Service() {
         return result
     }
 
+    // listener 以 "ip|port" 為鍵：每個 Tailscale 位址各綁 SOCKS 轉送埠與控制 API 埠
     private fun reconcileListeners() {
-        val desired = collectTailscaleAddrs()
+        val addrs = collectTailscaleAddrs()
+        val desired = addrs.flatMap { listOf("$it|$port", "$it|$controlPort") }.toSet()
         // 已消失或已被核心關掉的 listener 先拆掉
-        for ((ip, ss) in listeners) {
-            if (ip !in desired || ss.isClosed) {
+        for ((key, ss) in listeners) {
+            if (key !in desired || ss.isClosed) {
                 closeQuietly(ss)
-                listeners.remove(ip)
-                Log.i(TAG, "listener removed: $ip:$port")
+                listeners.remove(key)
+                Log.i(TAG, "listener removed: $key")
             }
         }
-        for (ip in desired) {
-            if (listeners.containsKey(ip)) continue
+        for (key in desired) {
+            if (listeners.containsKey(key)) continue
+            val ip = key.substringBefore('|')
+            val p = key.substringAfter('|').toInt()
             try {
                 val ss = ServerSocket()
                 ss.reuseAddress = true
-                ss.bind(InetSocketAddress(InetAddress.getByName(ip), port), 128)
-                listeners[ip] = ss
-                pool.execute { acceptLoop(ip, ss) }
-                Log.i(TAG, "listener added: $ip:$port")
+                ss.bind(InetSocketAddress(InetAddress.getByName(ip), p), 128)
+                listeners[key] = ss
+                val isControl = p == controlPort
+                pool.execute { acceptLoop(key, ss, isControl) }
+                Log.i(TAG, "listener added: $key")
             } catch (e: IOException) {
-                Log.w(TAG, "bind $ip:$port failed: ${e.message}")
+                Log.w(TAG, "bind $key failed: ${e.message}")
             }
         }
-        listenAddrs = listeners.keys.sorted()
+        listenAddrs = listeners.keys.filter { it.endsWith("|$port") }.map { it.substringBefore('|') }.sorted()
     }
 
-    private fun acceptLoop(ip: String, ss: ServerSocket) {
+    private fun acceptLoop(key: String, ss: ServerSocket, isControl: Boolean) {
         while (isRunning && !ss.isClosed) {
             val client = try { ss.accept() } catch (e: IOException) { break }
-            pool.execute { handle(client) }
+            pool.execute { if (isControl) handleControl(client) else handle(client) }
         }
         // accept 失敗（例如介面消失）：交由下一輪 reconcile 重綁
         closeQuietly(ss)
-        listeners.remove(ip, ss)
+        listeners.remove(key, ss)
     }
+
+    /**
+     * 控制 API（僅綁在 Tailscale 位址；不做認證，tailnet 內任何裝置都可呼叫）：
+     *   POST /rotate  → 202，背景執行飛航模式輪替（期間 Tailscale 會斷，結果用 /status 查）
+     *   GET  /status  → 最近一次輪替的狀態
+     *   GET  /ip      → 目前 5G 出口公網 IP
+     */
+    private fun handleControl(client: Socket) {
+        try {
+            client.soTimeout = 5000
+            val reader = client.getInputStream().bufferedReader(Charsets.ISO_8859_1)
+            val lines = ArrayList<String>()
+            while (lines.size < 100) {
+                val line = reader.readLine() ?: break
+                if (line.isEmpty()) break
+                lines.add(line)
+            }
+            val req = ControlHttp.parseHead(lines)
+            val rot = rotator
+            val (code, body) = when {
+                req == null -> 400 to json("error" to "bad request")
+                rot == null -> 503 to json("error" to "not ready")
+                req.method == "POST" && req.path == "/rotate" ->
+                    if (rot.start()) 202 to statusJson(rot.status) else 409 to statusJson(rot.status)
+                req.method == "GET" && req.path == "/status" -> 200 to statusJson(rot.status)
+                req.method == "GET" && req.path == "/ip" -> {
+                    val ip = rot.fetchPublicIp()
+                    if (ip != null) 200 to json("ip" to ip) else 502 to json("error" to "cellular egress unavailable")
+                }
+                else -> 404 to json("error" to "not found")
+            }
+            val reason = mapOf(200 to "OK", 202 to "Accepted", 400 to "Bad Request",
+                404 to "Not Found", 409 to "Conflict", 502 to "Bad Gateway", 503 to "Service Unavailable")[code] ?: ""
+            val bytes = (body + "\n").toByteArray()
+            val out = client.getOutputStream()
+            out.write(("HTTP/1.1 $code $reason\r\nContent-Type: application/json\r\n" +
+                "Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n").toByteArray())
+            out.write(bytes)
+            out.flush()
+        } catch (e: IOException) {
+            Log.d(TAG, "control connection ended: ${e.message}")
+        } finally {
+            closeQuietly(client)
+        }
+    }
+
+    private fun json(vararg pairs: Pair<String, Any?>): String =
+        org.json.JSONObject().apply { pairs.forEach { (k, v) -> put(k, v ?: org.json.JSONObject.NULL) } }.toString()
+
+    private fun statusJson(s: IpRotator.Status): String = json(
+        "state" to s.state, "old_ip" to s.oldIp, "new_ip" to s.newIp, "attempts" to s.attempts,
+        "error" to s.error, "started_at" to s.startedAt, "finished_at" to s.finishedAt,
+        "assistant_active" to AirplaneAssistant.isActive
+    )
 
     private fun handle(client: Socket) {
         val upstream = Socket()
