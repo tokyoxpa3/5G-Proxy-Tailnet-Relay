@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">5G Proxy Tailnet Relay</string>
+    <string name="hint_port">Port (same as 5G Proxy Pro)</string>
+    <string name="btn_start">Start relay</string>
+    <string name="btn_stop">Stop relay</string>
+    <string name="btn_battery">Disable battery optimization</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_waiting">Running — waiting for a Tailscale address (is Tailscale connected?)</string>
+    <string name="status_running">Running\nListening: %1$s\n→ 127.0.0.1:%2$d\nActive connections: %3$d</string>
+    <string name="setup_hint">Setup:\n1. In Tailscale, keep THIS app included (not excluded).\n2. In Tailscale, EXCLUDE 5G Proxy Pro so it can use cellular.\n3. Start 5G Proxy Pro on the same port.\nClients then use socks5://&lt;tailscale-ip&gt;:&lt;port&gt;.</string>
+    <string name="notif_channel">Relay</string>
+    <string name="notif_title">Tailnet relay running</string>
+    <string name="notif_text">Tailscale :%1$d → 127.0.0.1:%1$d</string>
+</resources>
