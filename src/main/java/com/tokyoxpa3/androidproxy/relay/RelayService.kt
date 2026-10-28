@@ -197,7 +197,7 @@ class RelayService : Service() {
     /**
      * 控制 API（僅綁在 Tailscale 位址；不做認證，tailnet 內任何裝置都可呼叫）：
      *   POST /rotate  → 202，背景執行飛航模式輪替（期間 Tailscale 會斷，結果用 /status 查）
-     *   GET  /status  → 最近一次輪替的狀態
+     *   GET  /status  → 最近一次輪替的狀態 + 系統網路判定（network）+ 整機行動數據用量（data_usage）
      *   GET  /ip      → 目前 5G 出口公網 IP
      */
     private fun handleControl(client: Socket) {
@@ -217,7 +217,10 @@ class RelayService : Service() {
                 rot == null -> 503 to json("error" to "not ready")
                 req.method == "POST" && req.path == "/rotate" ->
                     if (rot.start()) 202 to statusJson(rot.status) else 409 to statusJson(rot.status)
-                req.method == "GET" && req.path == "/status" -> 200 to statusJson(rot.status)
+                req.method == "GET" && req.path == "/status" -> 200 to org.json.JSONObject(statusJson(rot.status))
+                    .put("network", DeviceStatus.networkJson(applicationContext))
+                    .put("data_usage", DeviceStatus.dataUsageJson(applicationContext))
+                    .toString()
                 req.method == "GET" && req.path == "/ip" -> {
                     val ip = rot.fetchPublicIp()
                     if (ip != null) 200 to json("ip" to ip) else 502 to json("error" to "cellular egress unavailable")

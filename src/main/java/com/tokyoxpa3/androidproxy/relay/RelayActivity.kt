@@ -28,6 +28,7 @@ class RelayActivity : Activity() {
     private lateinit var toggleButton: Button
     private lateinit var batteryButton: Button
     private lateinit var assistantButton: Button
+    private lateinit var usageButton: Button
     private lateinit var rotateButton: Button
     private lateinit var statusText: TextView
     private val handler = Handler(Looper.getMainLooper())
@@ -64,6 +65,10 @@ class RelayActivity : Activity() {
             text = getString(R.string.btn_assistant)
             setOnClickListener { openAssistantSettings() }
         }
+        usageButton = Button(this).apply {
+            text = getString(R.string.btn_usage_access)
+            setOnClickListener { requestUsageAccess() }
+        }
         rotateButton = Button(this).apply {
             text = getString(R.string.btn_rotate)
             setOnClickListener {
@@ -86,6 +91,7 @@ class RelayActivity : Activity() {
                 addView(toggleButton)
                 addView(batteryButton)
                 addView(assistantButton)
+                addView(usageButton)
                 addView(rotateButton)
                 addView(statusText)
                 addView(hint)
@@ -96,6 +102,12 @@ class RelayActivity : Activity() {
             checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+        // Android 9 以下：/status 的數據用量需要 subscriberId
+        if (Build.VERSION.SDK_INT < 29 &&
+            checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.READ_PHONE_STATE), 2)
         }
     }
 
@@ -160,6 +172,9 @@ class RelayActivity : Activity() {
             if (AirplaneAssistant.isActive) R.string.btn_assistant_active else R.string.btn_assistant
         )
         rotateButton.isEnabled = running && AirplaneAssistant.isActive
+        usageButton.text = getString(
+            if (DeviceStatus.hasUsageAccess(this)) R.string.btn_usage_access_granted else R.string.btn_usage_access
+        )
         val addrs = RelayService.listenAddrs
         val relayLine = when {
             !running -> getString(R.string.status_stopped)
@@ -188,6 +203,15 @@ class RelayActivity : Activity() {
             )
         } catch (e: Exception) {
             startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        }
+    }
+
+    // /status 的 data_usage 需要「使用情形存取權」（特殊權限，只能在設定頁開）
+    private fun requestUsageAccess() {
+        try {
+            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        } catch (e: Exception) {
+            startActivity(Intent(Settings.ACTION_SETTINGS))
         }
     }
 
