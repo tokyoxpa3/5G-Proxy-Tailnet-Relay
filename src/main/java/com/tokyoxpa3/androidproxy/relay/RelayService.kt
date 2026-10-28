@@ -195,10 +195,14 @@ class RelayService : Service() {
     }
 
     /**
-     * 控制 API（僅綁在 Tailscale 位址；不做認證，tailnet 內任何裝置都可呼叫）：
+     * 控制 API（綁在 Tailscale 位址；**所有端點都需要權杖**，見 [ControlAuth]）：
      *   POST /rotate  → 202，背景執行飛航模式輪替（期間 Tailscale 會斷，結果用 /status 查）
      *   GET  /status  → 最近一次輪替的狀態 + 系統網路判定（network）+ 整機行動數據用量（data_usage）
      *   GET  /ip      → 目前 5G 出口公網 IP
+     *
+     * 權杖：`Authorization: Bearer <token>` 或 `?token=<token>`；權杖顯示在 App 介面上。
+     * tailnet 內的裝置彼此可達，而 /rotate 會切飛航模式讓這支手機整個斷線，
+     * 所以不能只靠「連得進來」當成授權。
      */
     private fun handleControl(client: Socket) {
         try {
@@ -214,7 +218,16 @@ class RelayService : Service() {
             val rot = rotator
             val (code, body) = when {
                 req == null -> 400 to json("error" to "bad request")
+                !ControlAuth.isAuthorized(applicationContext, req) -> 401 to json(
+                    "error" to "unauthorized",
+                    "hint" to "send 'Authorization: Bearer <token>' or '?token=<token>'; the token is shown in the app"
+                )
                 rot == null -> 503 to json("error" to "not ready")
+                // 先檢查前置條件再回 202：否則呼叫端拿到「已接受」，實際上這個請求
+                // 100% 會失敗（實測：1 ms 後 state 就變 failed），只能靠輪詢才發現。
+                req.method == "POST" && req.path == "/rotate" && !AirplaneAssistant.isActive ->
+                    412 to json("error" to "relay is not the default digital assistant",
+                        "hint" to "set this app as the default digital assistant, then retry")
                 req.method == "POST" && req.path == "/rotate" ->
                     if (rot.start()) 202 to statusJson(rot.status) else 409 to statusJson(rot.status)
                 req.method == "GET" && req.path == "/status" -> 200 to org.json.JSONObject(statusJson(rot.status))
@@ -227,8 +240,9 @@ class RelayService : Service() {
                 }
                 else -> 404 to json("error" to "not found")
             }
-            val reason = mapOf(200 to "OK", 202 to "Accepted", 400 to "Bad Request",
-                404 to "Not Found", 409 to "Conflict", 502 to "Bad Gateway", 503 to "Service Unavailable")[code] ?: ""
+            val reason = mapOf(200 to "OK", 202 to "Accepted", 400 to "Bad Request", 401 to "Unauthorized",
+                404 to "Not Found", 409 to "Conflict", 412 to "Precondition Failed",
+                502 to "Bad Gateway", 503 to "Service Unavailable")[code] ?: ""
             val bytes = (body + "\n").toByteArray()
             val out = client.getOutputStream()
             out.write(("HTTP/1.1 $code $reason\r\nContent-Type: application/json\r\n" +

@@ -31,6 +31,7 @@ class RelayActivity : Activity() {
     private lateinit var usageButton: Button
     private lateinit var rotateButton: Button
     private lateinit var statusText: TextView
+    private lateinit var tokenText: TextView
     private val handler = Handler(Looper.getMainLooper())
     private val refresher = object : Runnable {
         override fun run() {
@@ -78,6 +79,12 @@ class RelayActivity : Activity() {
             }
         }
         statusText = TextView(this).apply { setPadding(0, pad, 0, pad) }
+        // 控制 API 需要權杖（/rotate 會切飛航模式，不能只靠「連得進來」當授權）
+        tokenText = TextView(this).apply {
+            textSize = 12f
+            setPadding(0, pad, 0, pad)
+            setTextIsSelectable(true)
+        }
         val hint = TextView(this).apply { text = getString(R.string.setup_hint) }
 
         setContentView(ScrollView(this).apply {
@@ -94,6 +101,7 @@ class RelayActivity : Activity() {
                 addView(usageButton)
                 addView(rotateButton)
                 addView(statusText)
+                addView(tokenText)
                 addView(hint)
             })
         })
@@ -192,6 +200,7 @@ class RelayActivity : Activity() {
             R.string.status_rotation, r.state, r.oldIp ?: "?", r.newIp ?: "?", r.attempts, r.error ?: ""
         )
         statusText.text = relayLine + rotateLine
+        tokenText.text = getString(R.string.control_token, ControlAuth.tokenFor(this))
     }
 
     // Doze 下未加入白名單的 App 會被切斷網路（包含 tun0 進來的連線）
