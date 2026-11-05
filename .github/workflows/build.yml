@@ -59,10 +59,15 @@ jobs:
             "$PWD/keystore.jks" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
 
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest --no-daemon
+        run: |
+          # Windows checkouts lose the executable bit; do not rely on it.
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --no-daemon
 
       - name: Build APKs
-        run: ./gradlew assembleDebug assembleRelease --no-daemon
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug assembleRelease --no-daemon
 
       - name: Verify signature
         run: |
