@@ -54,6 +54,8 @@ relay silently falls back to the other two backends.
   `100.64.0.0/10` / `fd7a:115c:a1e0::/48`)
 - A SOCKS5 proxy listening on the phone (5G Proxy Pro listens on
   `127.0.0.1:1080` by default)
+- UI in English, Simplified Chinese, Traditional Chinese or Korean (follows the
+  system language; Android 13+ can override it per app)
 
 ## What it does
 
@@ -88,6 +90,31 @@ relay silently falls back to the other two backends.
 
 Every attempt is verified against the radio state (`awaitRadio()`), not against
 the value that was written.
+
+## Switching the proxy or the rotation backend
+
+**A different SOCKS5 proxy.** Edit the port, and the username/password if the
+proxy requires authentication, then tap *Stop relay* and *Start relay*. Any
+proxy bound to `127.0.0.1` works — the relay never forwards to a proxy on
+another device.
+
+**A different rotation backend.** The rotation button always shows the backend
+that is currently detected, and tapping it opens the picker:
+
+| Button state | What tapping does |
+|---|---|
+| Set up IP rotation (tap to choose) | Opens the picker — nothing is configured yet |
+| Airplane via system setting (tap for details) | Opens the picker — you can change it |
+| Digital assistant fallback (tap to change) | Opens the picker — you can change it |
+| OmniADB-Host ready | Nothing, by design |
+
+The last row is deliberate. OmniADB-Host is already the preferred backend (no
+root, no assistant takeover, Wi-Fi stays up), so there is nothing better to
+switch to. To force another backend, uninstall or disable OmniADB-Host, or clear
+the app's data.
+
+The backend is re-detected continuously, so installing OmniADB-Host is picked up
+without restarting the app.
 
 ## Control API
 
