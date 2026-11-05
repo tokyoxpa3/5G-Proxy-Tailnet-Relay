@@ -1,0 +1,75 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// [Tailnet 中繼] 獨立 APK（獨立 UID）：Android 的 per-app VPN 以 UID 為單位，
+// 主程式必須排除在 Tailscale 之外才能走蜂巢式出口，但排除後又收不到 tun0 進來的連線。
+// 本 App 留在 Tailscale 內，把 tailnet 進來的 TCP 轉送到主程式的 127.0.0.1 監聽。
+android {
+    namespace 'com.tokyoxpa3.tailnetrelay'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.tokyoxpa3.tailnetrelay"
+        minSdk 26
+        targetSdk 34
+        // 1.2.0：新增選配的 OmniADB-Host 窄介面（ShellBackend），IP 輪替不必再
+        //        搶使用者的預設數位助理。沒裝 Host 時行為與 1.1.0 完全相同。
+        // 1.2.1：修正「IP 輪替方式」按鈕的點擊邏輯。1.2.0 只改了顯示文字，
+        //        點下去仍一律開助理設定頁；且沒有 Host 時還會叫人下 pm grant
+        //        （Android 15+ 該權限切不了射頻）。改為按後端分流 + 三語新文案。
+        // 1.2.2：已就緒按鈕純顯示（不彈窗、文案不含括號提示）；設定對話框去掉
+        //        「取消」；下方說明改為三段式，所有 URL / curl / 權杖點擊即複製，
+        //        並自動帶入真實 Tailscale 位址、連接埠與權杖。
+        // 1.2.3：換上 relay/icon.jpg 製作的 launcher icon（adaptive + 各 density）
+        //        與 F-Droid 商店圖示；改寫 en-US / zh-TW 長描述，補上 OmniADB-Host
+        //        後端、只轉 TCP、api.ipify.org、權杖風險與素材授權說明。
+        //        1.2.2 已交付實機，故圖示變動另開一個 versionCode。
+        versionCode 6
+        versionName "1.2.3"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            // 與主程式共用 keystore.properties（CI 的 Restore keystore 步驟產生）；
+            // 沒有該檔案時輸出未簽名 APK
+            def keystoreProps = rootProject.file('keystore.properties')
+            if (keystoreProps.exists()) {
+                def props = new Properties()
+                keystoreProps.withInputStream { props.load(it) }
+                signingConfigs.create('release') {
+                    storeFile file(props['storeFile'])
+                    storePassword props['storePassword']
+                    keyAlias props['keyAlias']
+                    keyPassword props['keyPassword']
+                }
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    dependenciesInfo {
+        includeInApk = false
+    }
+
+    lintOptions {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
