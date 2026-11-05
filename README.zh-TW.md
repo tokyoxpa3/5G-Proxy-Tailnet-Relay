@@ -1,5 +1,10 @@
 # 5G Proxy — Tailnet Relay
 
+<p align="center">
+  <img src="fastlane/metadata/android/zh-TW/images/phoneScreenshots/1.png" width="320"
+       alt="中繼執行中，在 Tailscale 位址上監聽">
+</p>
+
 一個小型的陪伴 App：讓 tailnet（Tailscale 或相容客戶端）上的任何裝置，連到手機上
 執行的 SOCKS5 代理，出口走手機的**行動網路**，而不是家裡的寬頻。
 
@@ -20,6 +25,19 @@ Tailnet Relay 就是補上這段：
 
 Relay 留在 VPN 內，在 tailnet 位址上接受 TCP，轉送到代理的 loopback 監聽。
 兩個 App 各自擁有獨立 UID，所以代理仍然走蜂巢出口，流量也從不經過熱點介面。
+
+## 建議搭配 OmniADB-Host
+
+如果要使用 IP 輪替，建議一併安裝
+[OmniADB-Host](https://github.com/tokyoxpa3/OmniADB-Host)。
+
+沒有它時，`/rotate` 只剩兩條路：把預設數位助理讓給這個 App，或依賴
+`WRITE_SECURE_SETTINGS`——而後者在 Android 15 以上切不動射頻。裝了 OmniADB-Host
+之後，中繼會呼叫一個只開放四個固定動作的窄介面（`airplane_on`、`airplane_off`、
+`grant_secure`、`ping`），所以不需要 root、不會搶走助理、Wi-Fi 也不會斷。
+
+OmniADB-Host 不是通用 adb shell：只有這四個 method，而且呼叫端 UID 必須符合
+本 App 的套件名。沒安裝時，中繼會安靜地退回另外兩種後端。
 
 ## 需求
 
@@ -47,9 +65,7 @@ Relay 留在 VPN 內，在 tailnet 位址上接受 TCP，轉送到代理的 loop
 
 `/rotate` 依序嘗試：
 
-1. **OmniADB-Host** — 窄介面、固定動作的 `ContentProvider`
-   （`ping`、`airplane_on`、`airplane_off`、`grant_secure`）。以呼叫端 UID
-   比對本 App 的套件名，不是通用 adb shell。
+1. **OmniADB-Host** — 上面說的窄介面。首選：不需要 root、不搶助理、Wi-Fi 不斷。
 2. **`WRITE_SECURE_SETTINGS`** — 只讓切換期間 Wi-Fi 不斷。Android 15+ 上
    它**不會**切換射頻。
 3. **預設數位助理** — `ACTION_VOICE_CONTROL_AIRPLANE_MODE`，不靠 adb 時

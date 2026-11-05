@@ -1,5 +1,10 @@
 # 5G Proxy — Tailnet Relay
 
+<p align="center">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="320"
+       alt="Relay running, listening on a Tailscale address">
+</p>
+
 A small companion app that lets any device on your [Tailscale](https://tailscale.com)
 (or compatible) tailnet reach a SOCKS5 proxy running on an Android phone, so the
 traffic leaves through the phone's **cellular** connection instead of your home
@@ -25,6 +30,22 @@ The relay stays inside the VPN, accepts TCP on the tailnet address and forwards
 it to the proxy's loopback listener. The two apps keep separate UIDs, so the
 proxy keeps using the cellular exit and the traffic never touches the tethering
 interface.
+
+## Recommended: pair it with OmniADB-Host
+
+If you want IP rotation, install [OmniADB-Host](https://github.com/tokyoxpa3/OmniADB-Host)
+next to this app.
+
+Without it, `/rotate` has only two options: hand over your default digital
+assistant, or rely on `WRITE_SECURE_SETTINGS`, which cannot toggle the radio on
+Android 15 and newer. With OmniADB-Host installed, the relay calls a narrow
+provider that exposes four fixed actions — `airplane_on`, `airplane_off`,
+`grant_secure`, `ping` — so rotation works without root, without taking over the
+assistant, and without dropping Wi-Fi.
+
+OmniADB-Host is not a general adb shell: only those four methods exist, and the
+caller UID must match this app's package name. If the host is not installed, the
+relay silently falls back to the other two backends.
 
 ## Requirements
 
@@ -58,9 +79,8 @@ interface.
 
 `/rotate` tries the following, in order:
 
-1. **OmniADB-Host** — a narrow, fixed-action `ContentProvider`
-   (`ping`, `airplane_on`, `airplane_off`, `grant_secure`). The caller UID is
-   checked against this app's package name; it is not a general adb shell.
+1. **OmniADB-Host** — the narrow provider described above. Preferred: no root, no
+   assistant takeover, Wi-Fi stays up.
 2. **`WRITE_SECURE_SETTINGS`** — only keeps Wi-Fi alive during the toggle. On
    Android 15+ it does **not** switch the radio.
 3. **Default digital assistant** — `ACTION_VOICE_CONTROL_AIRPLANE_MODE`, the only

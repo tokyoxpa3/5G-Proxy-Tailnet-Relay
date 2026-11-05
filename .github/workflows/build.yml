@@ -1,0 +1,124 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        run: |
+          # Do not use android-actions/setup-android here: it runs
+          # `sdkmanager tools`, and that package was removed from the SDK repo.
+          # The runner image already ships an Android SDK, so wire its
+          # cmdline-tools onto PATH instead.
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          CT_BIN="$(ls -d "$SDK_ROOT"/cmdline-tools/*/bin 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$CT_BIN" ]; then
+            echo "$CT_BIN" >> "$GITHUB_PATH"
+          fi
+
+      - name: Install build-tools and platform
+        run: |
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "build-tools;34.0.0" "platforms;android-34"
+
+      - name: Restore keystore (optional)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          # Without the secrets this is still a useful CI run: it builds and
+          # tests the project, it just cannot produce an installable release.
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "No KEYSTORE_BASE64 secret; the release APK will be unsigned."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$PWD/keystore.jks" "$KEYSTORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > keystore.properties
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Build APKs
+        run: ./gradlew assembleDebug assembleRelease --no-daemon
+
+      - name: Verify signature
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          if [ -f keystore.properties ]; then
+            "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$APK"
+          else
+            echo "Unsigned build: skipping signature verification."
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+
+          # F-Droid names changelog files after versionCode, not versionName.
+          VERSION_CODE=$(grep -oP 'versionCode\s+\K[0-9]+' app/build.gradle | head -1)
+          EN="fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}.txt"
+          ZH="fastlane/metadata/android/zh-TW/changelogs/${VERSION_CODE}.txt"
+
+          {
+            if [ -f "$EN" ]; then
+              cat "$EN"
+            else
+              echo "> No changelog found for versionCode ${VERSION_CODE}."
+            fi
+            echo
+            if [ -f "$ZH" ]; then
+              echo "<details><summary>繁體中文</summary>"
+              echo
+              cat "$ZH"
+              echo
+              echo "</details>"
+              echo
+            fi
+            echo "Requires a tailnet client and a local SOCKS5 proxy."
+          } > RELEASE_NOTES.md
+
+          gh release create "$TAG" --title "$TAG" --notes-file RELEASE_NOTES.md 2>/dev/null || \
+            gh release edit "$TAG" --notes-file RELEASE_NOTES.md
+
+          if [ -f keystore.properties ]; then
+            APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+            cp "$APK" "5G-Proxy-Tailnet-Relay-${TAG}.apk"
+            gh release upload "$TAG" "5G-Proxy-Tailnet-Relay-${TAG}.apk" --clobber
+          else
+            echo "Skipping APK upload: unsigned build."
+          fi
