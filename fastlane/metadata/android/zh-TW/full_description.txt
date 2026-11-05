@@ -8,7 +8,7 @@ Android 同一時間只允許一個 VpnService。Tailscale 開著的時候，SOC
 
 <b>支援任何本機代理</b>
 
-5G Proxy Pro、Clash、v2rayNG、shadowsocks-android，任何綁定在 127.0.0.1 的都可以。你只需要填連接埠，不必做任何整合。
+5G Proxy Pro、Clash、v2rayNG、shadowsocks-android，任何綁定在 127.0.0.1 的都可以。你只需要填連接埠，不必做任何整合。只轉送 TCP，不支援 UDP（包含 QUIC）。
 
 <b>功能</b>
 
@@ -18,22 +18,28 @@ Android 同一時間只允許一個 VpnService。Tailscale 開著的時候，SOC
 <li>受權杖保護的控制 API，可查詢狀態並遠端輪替行動網路 IP</li>
 <li>狀態包含監聽位址、活躍連線數、系統網路驗證結果、整機行動數據用量</li>
 <li>可設定開機自動啟動</li>
+<li>點擊任一欄即可複製已帶入真實位址與權杖的連線資訊、URL 或 curl 指令</li>
 </ul>
 
 <b>遠端 IP 輪替</b>
 
-輪替行動網路 IP 等於切換飛航模式，需要下列兩條路徑之一：
+輪替行動網路 IP 等於切換飛航模式。程式依序嘗試下列後端，且會驗證蜂巢射頻真的斷了才回報成功：
 
 <ul>
-<li><b>WRITE_SECURE_SETTINGS</b>，用 adb 授予一次：<i>adb shell pm grant com.tokyoxpa3.tailnetrelay android.permission.WRITE_SECURE_SETTINGS</i>。Wi-Fi 與 Tailscale 不會斷，只有行動網路會掉。在 Android 15 與部分廠商 ROM 上，光有這個權限並不會真的切斷射頻。</li>
-<li><b>設為預設數位助理。</b>可靠，但啟用期間會取代 Google 助理。</li>
+<li><b>OmniADB-Host</b> —— 選配的配套 App，透過裝置本機的 ADB 通道執行寫死的指令。不需 root、不用搶助理，Wi-Fi 與 Tailscale 也不會斷。</li>
+<li><b>WRITE_SECURE_SETTINGS</b> —— 僅在仍吃飛航設定值的舊 ROM 有效。Android 15 與多數廠商 ROM 上只會改設定值、射頻不動；它本身不是一種輪替方法。</li>
+<li><b>設為預設數位助理</b> —— 可靠，但啟用期間會取代 Google 助理。</li>
 </ul>
 
-程式會先試第一條，驗證射頻是否真的變化，沒動就退回第二條。兩條都沒有時，其餘功能照常運作。
+三者都沒有時，轉送功能照常運作，只有遠端 IP 輪替不可用。
 
 <b>隱私</b>
 
-沒有廣告、沒有分析、沒有帳號、沒有追蹤。除了你要求它轉送的連線之外，程式不會把任何資料送往別處。
+沒有廣告、沒有分析、沒有帳號、沒有追蹤。控制 API 由本機產生的權杖保護；<i>/rotate</i> 會切換飛航模式，請勿外流該權杖。
+
+除了你要求它轉送的連線之外的網路行為：當你觸發 IP 輪替時，程式會經由你設定的 SOCKS5 代理查詢 api.ipify.org，以讀取新的公用 IP。
+
+開放原始碼（MIT）。App 圖示由專案自有美術素材製作。
 
 <b>需求</b>
 

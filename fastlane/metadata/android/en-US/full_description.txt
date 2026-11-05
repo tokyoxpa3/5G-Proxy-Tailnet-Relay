@@ -1,4 +1,4 @@
-<b>This is a companion app, not a standalone proxy.</b> It needs two things on the same phone: a tailnet client (Tailscale or compatible), and a SOCKS5 proxy listening on 127.0.0.1. Without both, the relay starts but forwards nothing.
+<b>This is a companion app, not a standalone proxy.</b> It needs two things on the same phone: a tailnet client (Tailscale or a compatible implementation), and a SOCKS5 proxy listening on 127.0.0.1. Without both, the relay starts but forwards nothing.
 
 <b>Why it exists</b>
 
@@ -8,7 +8,7 @@ The relay takes a third path. It stays inside the tailnet, accepts TCP connectio
 
 <b>Works with any local proxy</b>
 
-5G Proxy Pro, Clash, v2rayNG, shadowsocks-android — anything bound to 127.0.0.1. You set the port, nothing else. No integration needed.
+5G Proxy Pro, Clash, v2rayNG, shadowsocks-android — anything bound to 127.0.0.1. You set the port, nothing else. No integration needed. Only TCP is relayed; UDP (including QUIC) is not supported.
 
 <b>Features</b>
 
@@ -18,22 +18,28 @@ The relay takes a third path. It stays inside the tailnet, accepts TCP connectio
 <li>Token-protected control API to check status and rotate the cellular IP remotely</li>
 <li>Status reports listening address, active connection count, OS internet validation, and device-wide cellular data usage</li>
 <li>Optional start on boot</li>
+<li>Tap any field in the app to copy a ready-to-use proxy address, URL or curl command</li>
 </ul>
 
 <b>Remote IP rotation</b>
 
-Rotating the cellular IP means toggling airplane mode, which needs one of two paths:
+Rotating the cellular IP means toggling airplane mode. The app tries these backends in order and verifies that the cellular radio really went down before reporting success:
 
 <ul>
-<li><b>WRITE_SECURE_SETTINGS</b>, granted once over adb: <i>adb shell pm grant com.tokyoxpa3.tailnetrelay android.permission.WRITE_SECURE_SETTINGS</i>. Keeps Wi-Fi and Tailscale up while only cellular drops. On Android 15 and some vendor ROMs this alone does not cut the radio.</li>
-<li><b>Default digital assistant.</b> Reliable, but replaces Google Assistant while enabled.</li>
+<li><b>OmniADB-Host</b> — an optional companion app that runs a fixed shell command over the device's own local ADB channel. No root, no assistant, and Wi-Fi/Tailscale stay up.</li>
+<li><b>WRITE_SECURE_SETTINGS</b> — works on older ROMs that still honour the airplane setting. On Android 15 and many vendor ROMs this only changes a setting value and does not switch the radio; by itself it is not a rotation method.</li>
+<li><b>Default digital assistant</b> — reliable, but replaces Google Assistant while enabled.</li>
 </ul>
 
-The app tries the first, verifies the radio actually dropped, and falls back to the second. Everything else works without either.
+Without any of these, forwarding still works; only remote IP rotation is unavailable.
 
 <b>Privacy</b>
 
-No ads, no analytics, no accounts, no tracking. The app sends nothing anywhere except the connections you ask it to forward.
+No ads, no analytics, no accounts, no tracking. The control API is protected by a locally generated token. A /rotate request can toggle airplane mode, so keep that token private.
+
+Network usage beyond the connections you ask it to forward: when you trigger an IP rotation, the app queries api.ipify.org through the configured SOCKS5 proxy to read the new public IP.
+
+Open source (MIT). The app icon is derived from the project's own artwork.
 
 <b>Requirements</b>
 

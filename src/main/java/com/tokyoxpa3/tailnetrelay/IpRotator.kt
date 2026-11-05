@@ -144,10 +144,17 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
         if (!AirplaneToggle.canToggle(context)) {
             return initial.copy(
                 state = "failed",
-                error = "no way to toggle airplane mode: grant WRITE_SECURE_SETTINGS " +
-                    "or set this app as the default digital assistant"
+                // 別再把 pm grant 列為一種輪替方法：Android 15+ 那個權限只留住 Wi-Fi，
+                // 射頻根本不會動。真正能切射頻的是 OmniADB-Host shell 或數位助理。
+                error = "no way to toggle airplane mode: install OmniADB-Host, " +
+                    "or set this app as the default digital assistant " +
+                    "(WRITE_SECURE_SETTINGS alone does not toggle the radio on Android 15+)"
             )
         }
+        // 有 OmniADB-Host 時，請它幫本 App 取得 WRITE_SECURE_SETTINGS（冪等、
+        // 一次性）。這樣整個換 IP 流程不必接電腦，也不必動使用者的數位助理。
+        // 沒有 Host 時這行直接回 false，行為與原本相同。
+        if (!AirplaneToggle.hasPermission(context)) ShellBackend.grantSecureSettings(context)
         // IP 輪替只需要讓 modem 重新 attach，沒有理由把遠端控制所依賴的 Wi-Fi
         // 一起斷掉。這一步把 wifi 從飛航的關閉清單裡拿掉（需要 WRITE_SECURE_SETTINGS）；
         // 沒有權限時回 null，行為與原本相同。
@@ -159,11 +166,15 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
             s = s.copy(attempts = attempt)
             status = s
             Log.i(TAG, "attempt $attempt: old=$oldIp")
-            if (!setAirplane(true)) return s.copy(state = "failed", error = "airplane mode did not turn on")
+            if (!setAirplane(true)) return s.copy(
+                state = "failed", error = "airplane mode did not turn on${airplaneHint()}"
+            )
             // 第一次短、之後遞增：快路徑要快，但不能因為 hold 太短就永遠換不到 IP
             val hold = AIRPLANE_HOLD_MS + (attempt - 1) * AIRPLANE_HOLD_STEP_MS
             Thread.sleep(hold)
-            if (!setAirplane(false)) return s.copy(state = "failed", error = "airplane mode did not turn off")
+            if (!setAirplane(false)) return s.copy(
+                state = "failed", error = "airplane mode did not turn off${airplaneHint()}"
+            )
             val newIp = waitForPublicIp()
                 ?: return s.copy(state = "failed", error = "cellular egress did not recover in ${RECOVER_TIMEOUT_MS / 1000}s")
             s = s.copy(newIp = newIp)
@@ -171,6 +182,25 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
             if (oldIp == null || newIp != oldIp) return s.copy(state = "changed")
         }
         return s.copy(state = "unchanged")
+    }
+
+    /**
+     * 輪替失敗時要能讓人知道下一步做什麼，不能只丟一句「射頻沒動」。
+     * [AirplaneToggle.backend] 是「預期走哪條」、[AirplaneToggle.lastUsedBackend]
+     * 是「上次真的成功的是哪條」，兩者不同時後者尤其有用。
+     */
+    private fun airplaneHint(): String = when (AirplaneToggle.backend(context)) {
+        AirplaneToggle.BACKEND_SHELL ->
+            " | open OmniADB-Host and tap 'Check and repair' (adbd must be up on 5555)"
+        AirplaneToggle.BACKEND_SETTINGS ->
+            " | this ROM ignored the airplane setting; install OmniADB-Host or set this app as default assistant"
+        AirplaneToggle.BACKEND_ASSISTANT ->
+            " | re-select this app as the default digital assistant, or install OmniADB-Host"
+        else -> ""
+    }.let { hint ->
+        AirplaneToggle.lastUsedBackend?.let { used ->
+            "$hint (last successful backend: $used)"
+        } ?: hint
     }
 
     /**

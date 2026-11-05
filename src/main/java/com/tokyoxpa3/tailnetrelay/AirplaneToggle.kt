@@ -9,7 +9,8 @@ import android.provider.Settings
 import android.util.Log
 
 /**
- * [IP 輪替] 飛航模式切換：**先試設定，驗證射頻真的動了，不行才退回數位助理**。
+ * [IP 輪替] 飛航模式切換：**先試 OmniADB-Host shell（選配），再寫設定；
+ * 兩者都驗證射頻真的動了，不行才退回數位助理**。
  *
  * ## 為什麼要「驗證射頻」而不是只驗證設定值
  *
@@ -69,25 +70,27 @@ import android.util.Log
  *   - 其他 secure/global 設定（例如關掉 adb 金鑰效期）仍然需要它。
  *   - 授予它會落在 `install permissions`（寫在 packages.xml），重開機不掉。
  *
- * ## 要真正擺脫助理，需要一條 shell 通道
+ * ## 要真正擺脫助理，需要一條 shell 通道（已由 [ShellBackend] 實作）
  *
  * 唯一不需要換掉使用者助理的辦法，是拿到 shell（uid 2000）去跑
  * `cmd connectivity airplane-mode enable|disable`。取得方式有三：
- *   1. **本機 adbd**（OmniADB-Host 專案已經把 5555 埠與配對金鑰常駐化）——
- *      本 App 要嘛自己配對一次、要嘛請對方代跑。
+ *   1. **本機 adbd** —— 採用這條：OmniADB-Host 已把 5555 埠與配對金鑰常駐化，
+ *      並開出 `RelayBridgeProvider` 這個只認固定動作的窄介面。私鑰留在 Host，
+ *      本 App 不自行配對、不下任意指令。
  *   2. Shizuku（本質也是用 adb 起一個 shell 服務）。
  *   3. root。
  *
- * 三者都不在時，就只能退回助理。見 [AirplaneAssistant]。
+ * Host 沒裝、adbd 沒活著或指令失敗時，就往下走設定 / 助理。見 [AirplaneAssistant]。
  */
 object AirplaneToggle {
 
     private const val TAG = "AirplaneToggle"
 
     /** 後端識別字，給 /status 與 UI 顯示用。 */
+    const val BACKEND_SHELL = "shell"         // OmniADB-Host 窄介面（選配，最優先）
     const val BACKEND_SETTINGS = "settings"   // 有權限，且實測射頻真的會動
     const val BACKEND_ASSISTANT = "assistant" // 退回數位助理
-    const val BACKEND_NONE = "none"           // 兩條路都不通
+    const val BACKEND_NONE = "none"           // 三條路都不通
 
     /**
      * 寫入設定後等射頻變化的時間（開飛航：等蜂巢消失，通常 1–3 秒）。
@@ -123,14 +126,16 @@ object AirplaneToggle {
     /**
      * 現在能不能切換。
      *
-     * 已經證明這台 ROM 不觀察設定時，就只剩助理這條路 —— 那時沒有助理就是
-     * 真的做不到，要老實回 false（呼叫端會回 412 並附上該做什麼）。
+     * 三條路任一可用即可；全部不通時要老實回 false（呼叫端會回 412 並附上該做什麼）。
+     * [ShellBackend.isAvailable] 只探測 Host 在不在，不保證 adbd 活著 —— 真正
+     * 跑指令失敗時 [toggle] 會繼續往下一段降級，不會在這裡誤判。
      */
     fun canToggle(context: Context): Boolean =
-        settingsUsable(context) || AirplaneAssistant.isActive
+        ShellBackend.isAvailable(context) || settingsUsable(context) || AirplaneAssistant.isActive
 
     /** 目前實際會用的後端（給 /status 顯示；真正用哪條要等 [toggle] 才知道）。 */
     fun backend(context: Context): String = when {
+        ShellBackend.isAvailable(context) -> BACKEND_SHELL
         settingsUsable(context) -> BACKEND_SETTINGS
         AirplaneAssistant.isActive -> BACKEND_ASSISTANT
         else -> BACKEND_NONE
@@ -270,16 +275,28 @@ object AirplaneToggle {
     /**
      * 切換飛航模式，並**確認射頻真的跟著變**。
      *
-     * 順序：寫設定 → 驗證射頻 → 沒動就退回助理 → 再驗證。
+     * 順序：OmniADB-Host shell → 寫設定 → 驗證射頻 → 沒動就退回助理 → 再驗證。
+     * shell 是選配，沒裝 Host 或 adbd 沒活著時直接落到原本兩段。
      *
-     * 兩邊都用射頻（[hasCellular]）當判準，不用設定值 —— 設定值會被自己
-     * 寫進去，拿它驗證等於自己證明自己。
+     * 每一段都用射頻（[hasCellular]）當判準，不用設定值 —— 設定值會被自己
+     * 寫進去，拿它驗證等於自己證明自己；對端回覆「指令成功」也一樣不採信。
      *
      * @return true 代表射頻狀態確實變成 [enabled]
      */
     fun toggle(context: Context, enabled: Boolean): Boolean {
         val verifyMs = if (enabled) SETTINGS_VERIFY_ON_MS else SETTINGS_VERIFY_OFF_MS
         val trySettings = settingsUsable(context)
+
+        // [1/3] OmniADB-Host 窄介面：免助理、免 root、走 loopback 不受飛航影響。
+        // 失敗就安靜往下走，讓沒有 Host 的裝置維持原本的降級行為。
+        if (ShellBackend.isAvailable(context) &&
+            ShellBackend.setAirplane(context, enabled) &&
+            awaitRadio(context, enabled, verifyMs)
+        ) {
+            lastUsedBackend = BACKEND_SHELL
+            Log.i(TAG, "airplane=$enabled via OmniADB-Host shell (radio verified)")
+            return true
+        }
 
         if (trySettings) {
             writeSetting(context, enabled)

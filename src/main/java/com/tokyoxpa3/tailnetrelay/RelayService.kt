@@ -235,11 +235,13 @@ class RelayService : Service() {
                 // 先檢查前置條件再回 202：否則呼叫端拿到「已接受」，實際上這個請求
                 // 100% 會失敗（實測：1 ms 後 state 就變 failed），只能靠輪詢才發現。
                 isRotateRequest(req) && !AirplaneToggle.canToggle(applicationContext) ->
+                    // 舊提示叫人去下 pm grant，但 Android 15+ 那個權限切不了射頻，
+                    // 它只讓輪替期間 Wi-Fi 不斷。這裡改成兩條真的能切射頻的路。
                     412 to json("error" to "cannot toggle airplane mode",
                         "airplane_backend" to AirplaneToggle.BACKEND_NONE,
-                        "hint" to "grant WRITE_SECURE_SETTINGS once: " +
-                            "adb shell pm grant $packageName android.permission.WRITE_SECURE_SETTINGS " +
-                            "(or set this app as the default digital assistant)")
+                        "hint" to "install OmniADB-Host (recommended), or set this app as " +
+                            "the default digital assistant; WRITE_SECURE_SETTINGS alone " +
+                            "does not toggle the radio on Android 15+")
                 isRotateRequest(req) ->
                     if (rot.start()) 202 to statusJson(rot.status) else 409 to statusJson(rot.status)
                 req.method == "GET" && req.path == "/status" -> 200 to org.json.JSONObject(statusJson(rot.status))
@@ -281,8 +283,8 @@ class RelayService : Service() {
     private fun statusJson(s: IpRotator.Status): String = json(
         "state" to s.state, "old_ip" to s.oldIp, "new_ip" to s.newIp, "attempts" to s.attempts,
         "error" to s.error, "started_at" to s.startedAt, "finished_at" to s.finishedAt,
-        // settings = 有 WRITE_SECURE_SETTINGS（但這台 ROM 不一定會真的切射頻）；
-        // assistant = 退回數位助理；none = 兩條路都不通，/rotate 會直接回 412
+        // shell = OmniADB-Host 窄介面；settings = 寫設定且這台 ROM 實測會切射頻；
+        // assistant = 退回數位助理；none = 三條路都不通，/rotate 會直接回 412
         "airplane_backend" to AirplaneToggle.backend(applicationContext),
         // 上一次輪替**實際成功**用的路，可能與上面不同（null = 還沒成功過）
         "airplane_backend_used" to AirplaneToggle.lastUsedBackend,

@@ -1,0 +1,5 @@
+New app icon made from the project's own 5G-PROXY-COMPANION artwork, with adaptive-icon support and a 512x512 store icon.
+
+- Rewrote the store description: this is a companion app that needs a tailnet client plus a local SOCKS5 proxy (5G Proxy Pro, Clash, v2rayNG, shadowsocks-android, ...), and it forwards TCP only, not UDP/QUIC.
+- Documented all three IP-rotation backends, including that WRITE_SECURE_SETTINGS alone does not toggle the radio on Android 15+.
+- Disclosed the api.ipify.org lookup used when rotating, the locally generated control-API token, the MIT license and the icon's provenance.

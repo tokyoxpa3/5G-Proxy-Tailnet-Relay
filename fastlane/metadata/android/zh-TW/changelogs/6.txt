@@ -1,0 +1,5 @@
+換上以專案自有「5G-PROXY-COMPANION」美術素材製作的新 App 圖示，支援 adaptive icon，並補上 512×512 商店圖示。
+
+- 改寫商店說明：這是配套 App，需要 tailnet 用戶端加上本機 SOCKS5 代理（5G Proxy Pro、Clash、v2rayNG、shadowsocks-android 等），且只轉送 TCP，不支援 UDP / QUIC。
+- 補齊三種 IP 輪替後端說明，包含「WRITE_SECURE_SETTINGS 在 Android 15+ 本身切不了射頻」。
+- 揭露輪替時會查詢 api.ipify.org、控制 API 權杖為本機產生、MIT 授權，以及圖示素材來源。

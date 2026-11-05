@@ -1,0 +1,5 @@
+- "OmniADB-Host ready" is now a plain status: tapping it does nothing.
+- Removed "Cancel" from the IP-rotation setup dialog.
+- Setup notes are split into sections; tap any field to copy a ready-to-use proxy address, URL, curl command or token with real values filled in.
+- Fixed: the rotation button no longer opens assistant settings when a shell backend is available.
+- Fixed: removed outdated "adb shell pm grant" setup instructions (this permission does not toggle the radio on Android 15+).
