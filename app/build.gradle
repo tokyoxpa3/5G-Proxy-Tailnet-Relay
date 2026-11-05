@@ -26,8 +26,10 @@ android {
         //        與 F-Droid 商店圖示；改寫 en-US / zh-TW 長描述，補上 OmniADB-Host
         //        後端、只轉 TCP、api.ipify.org、權杖風險與素材授權說明。
         //        1.2.2 已交付實機，故圖示變動另開一個 versionCode。
-        versionCode 6
-        versionName "1.2.3"
+        // 1.2.4：新增韓文介面（values-ko）。relay 由韓國貢獻者 bokukpark 發起，
+        //        先前只有英 / 簡中 / 繁中，這次補齊韓文並附韓文商店截圖。
+        versionCode 7
+        versionName "1.2.4"
     }
 
     compileOptions {

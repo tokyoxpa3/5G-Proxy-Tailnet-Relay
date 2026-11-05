@@ -1,0 +1,5 @@
+Added a Korean UI. The app now ships English, Simplified Chinese, Traditional Chinese and Korean strings.
+
+- The relay was started by a Korean contributor, so the interface now matches the community that built it.
+- Korean store screenshot added.
+- No behaviour changes; ports, control API and IP rotation are unchanged.

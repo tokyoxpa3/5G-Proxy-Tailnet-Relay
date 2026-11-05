@@ -1,11 +1,9 @@
 # 5G Proxy — Tailnet Relay
 
 <p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="320"
+  <img src="fastlane/metadata/android/ko-KR/images/phoneScreenshots/1.png" width="320"
        alt="릴레이 실행 중, Tailscale 주소에서 수신 대기">
 </p>
-
-<p align="center"><sub>스크린샷은 영어 UI 기준입니다. 앱 자체는 아직 한국어 UI를 제공하지 않습니다.</sub></p>
 
 Tailnet(Tailscale 또는 호환 클라이언트)에 연결된 어떤 기기에서든, 안드로이드 폰에서
 실행 중인 SOCKS5 프록시에 접속할 수 있게 해 주는 작은 컴패니언 앱입니다. 트래픽은
