@@ -1,9 +1,9 @@
-// Render relay/icon.jpg into the relay module's launcher icons and the F-Droid
-// fastlane icon. Single-file JDK tool: no third-party dependencies.
+// Render icon.jpg into the app's launcher icons and the F-Droid fastlane icon.
+// Single-file JDK tool: no third-party dependencies.
 //
 //   java tools/render_relay_icon.java <repo-root>
 //
-// Source artwork: relay/icon.jpg (1024x1024, "5G-PROXY-COMPANION", owned by the
+// Source artwork: icon.jpg (1024x1024, "5G-PROXY-COMPANION", owned by the
 // project). It already has its own rounded frame and wordmark, so the foreground
 // layer stays transparent and the artwork lives in the background layer.
 //
@@ -13,9 +13,9 @@
 // therefore pads the artwork down into the 66dp safe zone on a white canvas.
 //
 // Outputs:
-//   relay/src/main/res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png  (legacy fallback)
-//   relay/src/main/res/mipmap-xxxhdpi/ic_launcher_background.png     (108dp @4x, padded)
-//   relay/fastlane/metadata/android/{en-US,zh-TW}/images/icon.png    (512x512)
+//   app/src/main/res/mipmap-{m,h,xh,xxh,xxxh}dpi/ic_launcher.png  (legacy fallback)
+//   app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.png     (108dp @4x, padded)
+//   fastlane/metadata/android/{en-US,zh-TW}/images/icon.png        (512x512)
 
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -81,7 +81,7 @@ public class render_relay_icon {
 
     public static void main(String[] args) throws Exception {
         Path root = Paths.get(args.length > 0 ? args[0] : ".").toAbsolutePath();
-        Path srcPath = root.resolve("relay/icon.jpg");
+        Path srcPath = root.resolve("icon.jpg");
         BufferedImage src = ImageIO.read(srcPath.toFile());
         if (src == null) throw new IllegalStateException("cannot decode " + srcPath);
         System.out.println("source " + src.getWidth() + "x" + src.getHeight() + " " + srcPath);
@@ -90,18 +90,18 @@ public class render_relay_icon {
         int[] sizes = {48, 72, 96, 144, 192};
         for (int i = 0; i < densities.length; i++) {
             save(resize(src, sizes[i]),
-                    root.resolve("relay/src/main/res/mipmap-" + densities[i] + "/ic_launcher.png"));
+                    root.resolve("app/src/main/res/mipmap-" + densities[i] + "/ic_launcher.png"));
         }
 
         // Adaptive icon background layer: 108dp canvas at 4x (xxxhdpi), so the
         // bitmap's intrinsic size really is 108dp instead of being nodpi-scaled.
         save(safeZoneBackground(src),
-                root.resolve("relay/src/main/res/mipmap-xxxhdpi/ic_launcher_background.png"));
+                root.resolve("app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.png"));
 
         // F-Droid reads <subdir>/fastlane/metadata/android/<locale>/images/icon.png.
         BufferedImage store = resize(src, 512);
         for (String locale : new String[]{"en-US", "zh-TW"}) {
-            save(store, root.resolve("relay/fastlane/metadata/android/" + locale
+            save(store, root.resolve("fastlane/metadata/android/" + locale
                     + "/images/icon.png"));
         }
     }
