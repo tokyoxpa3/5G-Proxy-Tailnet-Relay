@@ -1,4 +1,4 @@
-package com.tokyoxpa3.androidproxy.relay
+package com.tokyoxpa3.tailnetrelay
 
 import android.annotation.SuppressLint
 import android.app.AppOpsManager
@@ -60,7 +60,7 @@ object DeviceStatus {
             put("internet_ok", anyValidated)
             // null = 目前沒有行動網路（飛航模式、數據關閉、無訊號）
             put("cellular_internet_ok", cellularValidated ?: JSONObject.NULL)
-            put("airplane_mode", AirplaneAssistant.isAirplaneOn(context))
+            put("airplane_mode", AirplaneToggle.isAirplaneOn(context))
             put("networks", list)
         }
     }

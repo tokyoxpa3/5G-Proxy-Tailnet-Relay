@@ -1,0 +1,40 @@
+<b>這是配套程式，不是獨立的代理。</b>它需要手機上同時具備兩樣東西：一個 tailnet 用戶端（Tailscale 或相容實作），以及一個監聽 127.0.0.1 的 SOCKS5 代理。缺任何一項，中繼可以啟動，但不會轉送任何流量。
+
+<b>為什麼需要它</b>
+
+Android 同一時間只允許一個 VpnService。Tailscale 開著的時候，SOCKS5 代理程式就無法啟動自己的 VPN。而改用熱點分享又是另一個問題：封包會保留原本的 TTL 與 TCP 指紋，一看就知道不是手機自己發出的流量。
+
+中繼走第三條路。它留在 tailnet 內，接受從手機 Tailscale 位址進來的 TCP 連線，轉交給本機的 SOCKS5 代理。代理再以手機自己的 UID、經由行動網路重新發起每一條連線。整個過程沒有任何流量經過熱點介面。
+
+<b>支援任何本機代理</b>
+
+5G Proxy Pro、Clash、v2rayNG、shadowsocks-android，任何綁定在 127.0.0.1 的都可以。你只需要填連接埠，不必做任何整合。
+
+<b>功能</b>
+
+<ul>
+<li>把 tailnet 位址進來的 TCP 轉送到本機 SOCKS5 代理</li>
+<li>選用的 SOCKS5 認證（使用者名稱與密碼）</li>
+<li>受權杖保護的控制 API，可查詢狀態並遠端輪替行動網路 IP</li>
+<li>狀態包含監聽位址、活躍連線數、系統網路驗證結果、整機行動數據用量</li>
+<li>可設定開機自動啟動</li>
+</ul>
+
+<b>遠端 IP 輪替</b>
+
+輪替行動網路 IP 等於切換飛航模式，需要下列兩條路徑之一：
+
+<ul>
+<li><b>WRITE_SECURE_SETTINGS</b>，用 adb 授予一次：<i>adb shell pm grant com.tokyoxpa3.tailnetrelay android.permission.WRITE_SECURE_SETTINGS</i>。Wi-Fi 與 Tailscale 不會斷，只有行動網路會掉。在 Android 15 與部分廠商 ROM 上，光有這個權限並不會真的切斷射頻。</li>
+<li><b>設為預設數位助理。</b>可靠，但啟用期間會取代 Google 助理。</li>
+</ul>
+
+程式會先試第一條，驗證射頻是否真的變化，沒動就退回第二條。兩條都沒有時，其餘功能照常運作。
+
+<b>隱私</b>
+
+沒有廣告、沒有分析、沒有帳號、沒有追蹤。除了你要求它轉送的連線之外，程式不會把任何資料送往別處。
+
+<b>需求</b>
+
+Android 8.0 以上。同一台裝置上有 tailnet 用戶端。一個監聽 127.0.0.1 的 SOCKS5 代理。

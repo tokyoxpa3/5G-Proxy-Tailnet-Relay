@@ -1,4 +1,4 @@
-package com.tokyoxpa3.androidproxy.relay
+package com.tokyoxpa3.tailnetrelay
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -45,8 +45,8 @@ class RelayService : Service() {
         private const val BUF_SIZE = 64 * 1024
         private const val HALF_CLOSE_LINGER_SEC = 60L
 
-        const val ACTION_START = "com.tokyoxpa3.androidproxy.relay.START"
-        const val ACTION_STOP = "com.tokyoxpa3.androidproxy.relay.STOP"
+        const val ACTION_START = "com.tokyoxpa3.tailnetrelay.START"
+        const val ACTION_STOP = "com.tokyoxpa3.tailnetrelay.STOP"
         const val EXTRA_PORT = "port"
         const val DEFAULT_PORT = 1080
         const val DEFAULT_CONTROL_PORT = 8081
@@ -72,6 +72,9 @@ class RelayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        // 上次輪替若被殺在「飛航射頻清單已改、還沒還原」的狀態，這裡收拾掉。
+        // 只在飛航已關閉時動作，所以不會打斷正在進行的輪替。
+        AirplaneToggle.cleanupIfStale(applicationContext)
         val prefs = getSharedPreferences("relay", Context.MODE_PRIVATE)
         val requested = intent?.getIntExtra(EXTRA_PORT, -1) ?: -1
         val newPort = if (requested > 0) requested else prefs.getInt("port", DEFAULT_PORT)
@@ -196,13 +199,19 @@ class RelayService : Service() {
 
     /**
      * 控制 API（綁在 Tailscale 位址；**所有端點都需要權杖**，見 [ControlAuth]）：
-     *   POST /rotate  → 202，背景執行飛航模式輪替（期間 Tailscale 會斷，結果用 /status 查）
-     *   GET  /status  → 最近一次輪替的狀態 + 系統網路判定（network）+ 整機行動數據用量（data_usage）
-     *   GET  /ip      → 目前 5G 出口公網 IP
+     *   GET|POST /rotate → 202，背景執行飛航模式輪替（結果用 /status 查）
+     *   GET  /status     → 最近一次輪替的狀態 + 系統網路判定（network）+ 整機行動數據用量（data_usage）
+     *   GET  /ip         → 目前 5G 出口公網 IP
      *
      * 權杖：`Authorization: Bearer <token>` 或 `?token=<token>`；權杖顯示在 App 介面上。
      * tailnet 內的裝置彼此可達，而 /rotate 會切飛航模式讓這支手機整個斷線，
      * 所以不能只靠「連得進來」當成授權。
+     *
+     * ★ `/rotate` 也接受 GET，雖然它會改變狀態（不符 HTTP 語意）。理由是實際
+     *   使用情境：在手機或 iPhone 的瀏覽器上要遠端換 IP，而**網址列只能發 GET**，
+     *   沒辦法加 header、也沒辦法指定方法。權杖走 `?token=` 是唯一的選擇。
+     *   代價是權杖會留在瀏覽器歷史與伺服器日誌裡 —— 這是自建工具、token 可
+     *   隨時重新產生（[ControlAuth.regenerate]），可以接受。
      */
     private fun handleControl(client: Socket) {
         try {
@@ -225,10 +234,13 @@ class RelayService : Service() {
                 rot == null -> 503 to json("error" to "not ready")
                 // 先檢查前置條件再回 202：否則呼叫端拿到「已接受」，實際上這個請求
                 // 100% 會失敗（實測：1 ms 後 state 就變 failed），只能靠輪詢才發現。
-                req.method == "POST" && req.path == "/rotate" && !AirplaneAssistant.isActive ->
-                    412 to json("error" to "relay is not the default digital assistant",
-                        "hint" to "set this app as the default digital assistant, then retry")
-                req.method == "POST" && req.path == "/rotate" ->
+                isRotateRequest(req) && !AirplaneToggle.canToggle(applicationContext) ->
+                    412 to json("error" to "cannot toggle airplane mode",
+                        "airplane_backend" to AirplaneToggle.BACKEND_NONE,
+                        "hint" to "grant WRITE_SECURE_SETTINGS once: " +
+                            "adb shell pm grant $packageName android.permission.WRITE_SECURE_SETTINGS " +
+                            "(or set this app as the default digital assistant)")
+                isRotateRequest(req) ->
                     if (rot.start()) 202 to statusJson(rot.status) else 409 to statusJson(rot.status)
                 req.method == "GET" && req.path == "/status" -> 200 to org.json.JSONObject(statusJson(rot.status))
                     .put("network", DeviceStatus.networkJson(applicationContext))
@@ -245,7 +257,10 @@ class RelayService : Service() {
                 502 to "Bad Gateway", 503 to "Service Unavailable")[code] ?: ""
             val bytes = (body + "\n").toByteArray()
             val out = client.getOutputStream()
-            out.write(("HTTP/1.1 $code $reason\r\nContent-Type: application/json\r\n" +
+            // no-store：/rotate 現在可以用瀏覽器 GET 觸發，任何快取都會讓使用者
+            // 按重新整理時看到上一次的結果、誤以為這次也輪替了。
+            out.write(("HTTP/1.1 $code $reason\r\nContent-Type: application/json; charset=utf-8\r\n" +
+                "Cache-Control: no-store\r\n" +
                 "Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n").toByteArray())
             out.write(bytes)
             out.flush()
@@ -259,9 +274,22 @@ class RelayService : Service() {
     private fun json(vararg pairs: Pair<String, Any?>): String =
         org.json.JSONObject().apply { pairs.forEach { (k, v) -> put(k, v ?: org.json.JSONObject.NULL) } }.toString()
 
+    /** `/rotate` 接受 GET 或 POST —— 見 [handleControl] 的說明。 */
+    private fun isRotateRequest(req: ControlHttp.Request): Boolean =
+        req.path == "/rotate" && (req.method == "POST" || req.method == "GET")
+
     private fun statusJson(s: IpRotator.Status): String = json(
         "state" to s.state, "old_ip" to s.oldIp, "new_ip" to s.newIp, "attempts" to s.attempts,
         "error" to s.error, "started_at" to s.startedAt, "finished_at" to s.finishedAt,
+        // settings = 有 WRITE_SECURE_SETTINGS（但這台 ROM 不一定會真的切射頻）；
+        // assistant = 退回數位助理；none = 兩條路都不通，/rotate 會直接回 412
+        "airplane_backend" to AirplaneToggle.backend(applicationContext),
+        // 上一次輪替**實際成功**用的路，可能與上面不同（null = 還沒成功過）
+        "airplane_backend_used" to AirplaneToggle.lastUsedBackend,
+        // 這輪是否把 Wi-Fi 從飛航的關閉清單拿掉：
+        // true = 只有蜂巢中斷，Wi-Fi 與 tailnet 全程可用（遠端可持續查 /status）
+        "kept_wifi" to s.keptWifi,
+        // 保留舊欄位，避免既有客戶端壞掉
         "assistant_active" to AirplaneAssistant.isActive
     )
 

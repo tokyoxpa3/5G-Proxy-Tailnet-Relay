@@ -1,4 +1,4 @@
-package com.tokyoxpa3.androidproxy.relay
+package com.tokyoxpa3.tailnetrelay
 
 import android.content.BroadcastReceiver
 import android.content.Context

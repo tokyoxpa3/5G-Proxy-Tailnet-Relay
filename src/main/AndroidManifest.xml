@@ -16,6 +16,26 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE"
         android:maxSdkVersion="28" />
 
+    <!--
+      [IP 輪替] 切換飛航模式用的權限（第一嘗試路徑，不保證每台都有效）。
+
+      ★ 為什麼一定要「宣告」才拿得到：
+        WRITE_SECURE_SETTINGS 的 protectionLevel 帶 development 旗標，所以
+        `pm grant` 可以授予它 —— 但**前提是 manifest 裡有宣告**。
+        沒宣告時 pm grant 不會報錯、也不會生效（實測 MIUI：exit=0，但
+        `dumpsys package` 裡完全沒有這一筆）。這種靜默失敗很容易被誤判成
+        「這台機器不給權限」。加上這一行之後同一台機器立刻 granted=true。
+
+      ★ 但光有權限**不足以**切飛航模式：
+        Android 15 / MIUI 實測，寫 Settings.Global.AIRPLANE_MODE_ON 只會改設定值，
+        射頻（ccmni1 的 IPv4）全程不掉；而 AIRPLANE_MODE 廣播是受保護廣播，
+        連 adb shell 都被 SecurityException 擋掉。真正有效的是
+        `cmd connectivity airplane-mode`（需 shell uid）或數位助理那條路。
+        因此 IpRotator 會驗證射頻是否真的變化，沒動就退回助理。詳見 AirplaneToggle.kt。
+    -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
     <application
         android:allowBackup="false"
         android:icon="@android:drawable/sym_def_app_icon"

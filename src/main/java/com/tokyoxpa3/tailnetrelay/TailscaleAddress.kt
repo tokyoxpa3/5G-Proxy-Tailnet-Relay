@@ -1,4 +1,4 @@
-package com.tokyoxpa3.androidproxy.relay
+package com.tokyoxpa3.tailnetrelay
 
 import java.net.Inet4Address
 import java.net.Inet6Address

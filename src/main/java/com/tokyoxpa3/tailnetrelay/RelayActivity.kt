@@ -1,4 +1,4 @@
-package com.tokyoxpa3.androidproxy.relay
+package com.tokyoxpa3.tailnetrelay
 
 import android.app.Activity
 import android.content.Context
@@ -64,7 +64,18 @@ class RelayActivity : Activity() {
         }
         assistantButton = Button(this).apply {
             text = getString(R.string.btn_assistant)
-            setOnClickListener { openAssistantSettings() }
+            setOnClickListener {
+                // 兩條路都不通時，開助理設定頁沒用 —— 直接給那條一次性的 adb 指令。
+                if (AirplaneToggle.backend(this@RelayActivity) == AirplaneToggle.BACKEND_NONE) {
+                    Toast.makeText(
+                        this@RelayActivity,
+                        getString(R.string.toast_perm_hint, packageName),
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    openAssistantSettings()
+                }
+            }
         }
         usageButton = Button(this).apply {
             text = getString(R.string.btn_usage_access)
@@ -85,7 +96,7 @@ class RelayActivity : Activity() {
             setPadding(0, pad, 0, pad)
             setTextIsSelectable(true)
         }
-        val hint = TextView(this).apply { text = getString(R.string.setup_hint) }
+        val hint = TextView(this).apply { text = getString(R.string.setup_hint, packageName) }
 
         setContentView(ScrollView(this).apply {
             addView(LinearLayout(this@RelayActivity).apply {
@@ -176,10 +187,23 @@ class RelayActivity : Activity() {
         controlPortInput.isEnabled = !running
         val pm = getSystemService(PowerManager::class.java)
         batteryButton.isEnabled = !pm.isIgnoringBatteryOptimizations(packageName)
-        assistantButton.text = getString(
-            if (AirplaneAssistant.isActive) R.string.btn_assistant_active else R.string.btn_assistant
-        )
-        rotateButton.isEnabled = running && AirplaneAssistant.isActive
+        // 飛航模式控制有兩條路：有 WRITE_SECURE_SETTINGS 就走設定（不必動助理），
+        // 沒有才退回「預設數位助理」。這顆按鈕隨目前走哪條路改變語意。
+        when (AirplaneToggle.backend(this)) {
+            AirplaneToggle.BACKEND_SETTINGS -> {
+                assistantButton.text = getString(R.string.btn_perm_granted)
+                assistantButton.isEnabled = true
+            }
+            AirplaneToggle.BACKEND_ASSISTANT -> {
+                assistantButton.text = getString(R.string.btn_assistant_active)
+                assistantButton.isEnabled = true
+            }
+            else -> {
+                assistantButton.text = getString(R.string.btn_perm_missing)
+                assistantButton.isEnabled = true
+            }
+        }
+        rotateButton.isEnabled = running && AirplaneToggle.canToggle(this)
         usageButton.text = getString(
             if (DeviceStatus.hasUsageAccess(this)) R.string.btn_usage_access_granted else R.string.btn_usage_access
         )

@@ -1,0 +1,8 @@
+以 com.tokyoxpa3.tailnetrelay 發布的第一版。
+
+- 把 tailnet 位址進來的 TCP 轉送到 127.0.0.1 上的任何 SOCKS5 代理
+- 選用的 SOCKS5 認證
+- 受權杖保護的控制 API，含 /status 與 /rotate
+- 遠端輪替行動網路 IP：優先使用 WRITE_SECURE_SETTINGS，失敗時退回數位助理
+- 已授予權限時，輪替期間 Wi-Fi 與 Tailscale 不會中斷
+- 狀態包含活躍連線數、系統網路驗證結果、行動數據用量

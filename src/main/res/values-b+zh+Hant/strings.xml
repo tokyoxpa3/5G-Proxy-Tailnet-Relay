@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">5G Proxy 中繼</string>
+    <string name="hint_port">本機 SOCKS5 連接埠（代理需監聽 127.0.0.1）</string>
+    <string name="hint_control_port">控制 API 連接埠</string>
+    <string name="hint_socks_user">SOCKS5 使用者名稱（僅在代理要求驗證時需要）</string>
+    <string name="hint_socks_pass">SOCKS5 密碼（僅在代理要求驗證時需要）</string>
+    <string name="btn_start">啟動中繼</string>
+    <string name="btn_stop">停止中繼</string>
+    <string name="btn_battery">關閉電池最佳化</string>
+    <string name="btn_assistant">設為預設數位助理（IP 輪替的備援路徑）</string>
+    <string name="btn_assistant_active">✅ 已是預設數位助理（備援可用）</string>
+    <string name="btn_perm_granted">✅ 已授予 WRITE_SECURE_SETTINGS（部分機型仍需助理）</string>
+    <string name="btn_perm_missing">授予飛航控制權限（一次性 adb 指令）</string>
+    <string name="toast_perm_hint">在電腦或另一台有 adb 的裝置上執行一次：\nadb shell pm grant %1$s android.permission.WRITE_SECURE_SETTINGS\n重新開機與更新應用程式都不會失效。\n\n注意：在 Android 15 / MIUI 上，光有這個權限並不能切換射頻——寫 airplane_mode_on 設定已經不會真的開啟飛航模式，而 AIRPLANE_MODE 廣播是受保護的（連 adb shell 都送不出去）。若輪替仍然失敗，請改用數位助理這條備援路徑。</string>
+    <string name="btn_usage_access">允許用量存取（在 /status 顯示數據用量）</string>
+    <string name="btn_usage_access_granted">✅ 已授予用量存取權限</string>
+    <string name="btn_rotate">立即輪替 IP（飛航模式）</string>
+    <string name="toast_rotate_unavailable">輪替已在進行中，或中繼尚未啟動</string>
+    <string name="toast_port_conflict">SOCKS 連接埠與控制連接埠不能相同</string>
+    <string name="status_stopped">已停止</string>
+    <string name="status_waiting">執行中 —— 等待 Tailscale 位址（Tailscale 連上了嗎？）</string>
+    <string name="status_running">執行中\n監聽：%1$s\nSOCKS → 127.0.0.1:%2$d（作用中連線：%3$d）\n控制 API：:%4$d</string>
+    <string name="status_rotation">\n\nIP 輪替：%1$s\n%2$s → %3$s（第 %4$d 次嘗試）%5$s</string>
+    <string name="control_token">控制 API 權杖（長按複製）：\n%1$s</string>
+    <string name="setup_hint">設定：\n1. 在 Tailscale 中讓本應用程式保持「包含」（不要排除）。\n2. 在 Tailscale 中把你的 SOCKS5 代理應用程式排除，讓它能走行動網路。\n3. 用下方連接埠啟動該代理，並監聽 127.0.0.1。\n用戶端接著使用 socks5://&lt;tailscale-ip&gt;:&lt;port&gt;。\n\n適用於任何本機 SOCKS5 代理——5G Proxy Pro、Clash、v2rayNG、\nshadowsocks-android，或任何監聽 127.0.0.1 的程式。\n\n遠端 IP 輪替（需要權杖 —— TOKEN 顯示在上方）：\n\n瀏覽器或手機（最簡單，網址列直接可用）：\n  http://&lt;tailscale-ip&gt;:&lt;control-port&gt;/rotate?token=$TOKEN\n\ncurl（兩種寫法都可以）：\n  curl \"http://&lt;tailscale-ip&gt;:&lt;control-port&gt;/rotate?token=$TOKEN\"\n  curl -H \"Authorization: Bearer $TOKEN\" -X POST http://&lt;tailscale-ip&gt;:&lt;control-port&gt;/rotate\n\n接著用同樣的權杖輪詢 GET /status。\n有 WRITE_SECURE_SETTINGS 授權時，輪替期間 Wi-Fi 與 Tailscale 保持連線——\n只有行動網路會斷約 5 秒，因此你能看到狀態從 running 變成 changed。\n沒有該授權時，Wi-Fi 也會斷，只能盲等它恢復。\nGET /status 還會回報系統的連網驗證結果（network）與整機行動數據用量（data_usage）。\n\n注意：輪替只會改變行動網路的 IP。你的代理必須以行動網路作為上游（例如把 5G Proxy Pro 綁定到行動網路），否則手機雖然重連了，出口 IP 也不會變。\n\nIP 輪替是選用的，它需要以下任一種方式切換飛航模式：\n(a) WRITE_SECURE_SETTINGS 授權（優先嘗試，不必換掉助理）：\nadb shell pm grant %1$s android.permission.WRITE_SECURE_SETTINGS\n    → 重新開機與更新都不會失效，但在 Android 15 / MIUI 上寫\n      airplane_mode_on 設定並不會真的切斷射頻\n(b) 把本應用程式設為預設數位助理（可靠，但會取代 Google 助理）。\n中繼會先試 (a)，驗證射頻真的斷了，再退回 (b)。\n其餘功能兩種都不需要。</string>
+    <string name="notif_channel">中繼</string>
+    <string name="notif_title">Tailnet 中繼執行中</string>
+    <string name="notif_text">Tailscale :%1$d → 127.0.0.1:%1$d</string>
+</resources>

@@ -7,11 +7,11 @@ plugins {
 // 主程式必須排除在 Tailscale 之外才能走蜂巢式出口，但排除後又收不到 tun0 進來的連線。
 // 本 App 留在 Tailscale 內，把 tailnet 進來的 TCP 轉送到主程式的 127.0.0.1 監聽。
 android {
-    namespace 'com.tokyoxpa3.androidproxy.relay'
+    namespace 'com.tokyoxpa3.tailnetrelay'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.tokyoxpa3.androidproxy.relay"
+        applicationId "com.tokyoxpa3.tailnetrelay"
         minSdk 26
         targetSdk 34
         versionCode 2

@@ -1,0 +1,40 @@
+<b>This is a companion app, not a standalone proxy.</b> It needs two things on the same phone: a tailnet client (Tailscale or compatible), and a SOCKS5 proxy listening on 127.0.0.1. Without both, the relay starts but forwards nothing.
+
+<b>Why it exists</b>
+
+Android allows only one active VpnService at a time. If Tailscale is running, a SOCKS5 proxy app cannot start its own VPN. Routing a laptop through the phone's hotspot has a different problem: the packets keep their original TTL and TCP fingerprint, so the traffic is visibly not the phone's own.
+
+The relay takes a third path. It stays inside the tailnet, accepts TCP connections arriving on the phone's Tailscale address, and hands them to the local SOCKS5 proxy. The proxy then opens every connection itself, under the phone's own UID, over the cellular interface. Nothing passes through the tethering interface.
+
+<b>Works with any local proxy</b>
+
+5G Proxy Pro, Clash, v2rayNG, shadowsocks-android — anything bound to 127.0.0.1. You set the port, nothing else. No integration needed.
+
+<b>Features</b>
+
+<ul>
+<li>Relays TCP from your tailnet address to a local SOCKS5 proxy</li>
+<li>Optional SOCKS5 authentication (username and password)</li>
+<li>Token-protected control API to check status and rotate the cellular IP remotely</li>
+<li>Status reports listening address, active connection count, OS internet validation, and device-wide cellular data usage</li>
+<li>Optional start on boot</li>
+</ul>
+
+<b>Remote IP rotation</b>
+
+Rotating the cellular IP means toggling airplane mode, which needs one of two paths:
+
+<ul>
+<li><b>WRITE_SECURE_SETTINGS</b>, granted once over adb: <i>adb shell pm grant com.tokyoxpa3.tailnetrelay android.permission.WRITE_SECURE_SETTINGS</i>. Keeps Wi-Fi and Tailscale up while only cellular drops. On Android 15 and some vendor ROMs this alone does not cut the radio.</li>
+<li><b>Default digital assistant.</b> Reliable, but replaces Google Assistant while enabled.</li>
+</ul>
+
+The app tries the first, verifies the radio actually dropped, and falls back to the second. Everything else works without either.
+
+<b>Privacy</b>
+
+No ads, no analytics, no accounts, no tracking. The app sends nothing anywhere except the connections you ask it to forward.
+
+<b>Requirements</b>
+
+Android 8.0 or newer. A tailnet client on the same device. A SOCKS5 proxy listening on 127.0.0.1.

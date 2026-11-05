@@ -1,0 +1,8 @@
+First release under com.tokyoxpa3.tailnetrelay.
+
+- Relays TCP from your tailnet address to any SOCKS5 proxy on 127.0.0.1
+- Optional SOCKS5 authentication
+- Token-protected control API with /status and /rotate
+- Remote cellular IP rotation via WRITE_SECURE_SETTINGS, with a digital-assistant fallback
+- Keeps Wi-Fi and Tailscale up during rotation when the permission is granted
+- Status reports active connections, OS internet validation, and cellular data usage

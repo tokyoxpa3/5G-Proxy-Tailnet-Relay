@@ -1,0 +1,1 @@
+Expose a phone-local SOCKS5 proxy over Tailscale. Requires a proxy app.
