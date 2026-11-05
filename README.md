@@ -1,5 +1,7 @@
 # 5G Proxy — Tailnet Relay
 
+**English** · [繁體中文](README.zh-TW.md) · [한국어](README.ko.md)
+
 <p align="center">
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="320"
        alt="Relay running, listening on a Tailscale address">

@@ -1,5 +1,7 @@
 # 5G Proxy — Tailnet Relay
 
+[English](README.md) · **繁體中文** · [한국어](README.ko.md)
+
 <p align="center">
   <img src="fastlane/metadata/android/zh-TW/images/phoneScreenshots/1.png" width="320"
        alt="中繼執行中，在 Tailscale 位址上監聽">
