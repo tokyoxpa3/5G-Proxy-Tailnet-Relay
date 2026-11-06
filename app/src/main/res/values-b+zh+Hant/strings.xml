@@ -7,6 +7,8 @@
     <string name="hint_socks_pass">SOCKS5 密碼（僅在代理要求驗證時需要）</string>
     <string name="btn_start">啟動中繼</string>
     <string name="btn_stop">停止中繼</string>
+    <string name="label_auto_start">重新開機後自動啟動中繼</string>
+    <string name="hint_auto_start">僅限關機前仍在執行時；按過「停止」就不會再被拉起。</string>
     <string name="btn_battery">關閉電池最佳化</string>
     <string name="btn_rotation_none">⚠ 設定 IP 輪替方式（點此選擇）</string>
     <string name="btn_rotation_shell">✅ OmniADB-Host 已就緒</string>
@@ -29,7 +31,6 @@
     <string name="status_waiting">執行中 —— 等待 Tailscale 位址（Tailscale 連上了嗎？）</string>
     <string name="status_running">執行中\n監聽：%1$s\nSOCKS → 127.0.0.1:%2$d（作用中連線：%3$d）\n控制 API：:%4$d</string>
     <string name="status_rotation">\n\nIP 輪替：%1$s\n%2$s → %3$s（第 %4$d 次嘗試）%5$s</string>
-    <string name="control_token">控制 API 權杖（點擊複製）：\n%1$s</string>
     <string name="hint_sec_setup">1. 設定</string>
     <string name="hint_setup_body">1. 在 Tailscale 中讓本應用程式保持「包含」（不要排除）。\n2. 在 Tailscale 中把你的 SOCKS5 代理應用程式排除，讓它能走行動網路。\n3. 用上方連接埠啟動該代理，並監聽 127.0.0.1。</string>
     <string name="hint_sec_copy">2. 點擊任一欄即可複製</string>

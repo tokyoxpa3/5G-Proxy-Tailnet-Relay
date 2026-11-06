@@ -7,6 +7,8 @@
     <string name="hint_socks_pass">SOCKS5 비밀번호 (프록시가 인증을 요구할 때만)</string>
     <string name="btn_start">릴레이 시작</string>
     <string name="btn_stop">릴레이 중지</string>
+    <string name="label_auto_start">재부팅 후 릴레이 자동 시작</string>
+    <string name="hint_auto_start">종료 전에 릴레이가 실행 중이었을 때만 해당됩니다. 중지 버튼을 누르면 다시 시작되지 않습니다.</string>
     <string name="btn_battery">배터리 최적화 해제</string>
     <string name="btn_rotation_none">⚠ IP 로테이션 설정 (탭하여 선택)</string>
     <string name="btn_rotation_shell">✅ OmniADB-Host 준비됨</string>
@@ -29,7 +31,6 @@
     <string name="status_waiting">실행 중 — Tailscale 주소를 기다리는 중 (Tailscale이 연결되어 있나요?)</string>
     <string name="status_running">실행 중\n수신: %1$s\nSOCKS → 127.0.0.1:%2$d (활성 연결: %3$d)\n제어 API: :%4$d</string>
     <string name="status_rotation">\n\nIP 로테이션: %1$s\n%2$s → %3$s (%4$d번째 시도) %5$s</string>
-    <string name="control_token">제어 API 토큰 (탭하여 복사):\n%1$s</string>
     <string name="hint_sec_setup">1. 설정</string>
     <string name="hint_setup_body">1. Tailscale에서 이 앱을 "포함"으로 유지하세요 (제외하지 마세요).\n2. Tailscale에서 SOCKS5 프록시 앱을 제외해 셀룰러를 쓸 수 있게 하세요.\n3. 위 포트에서 해당 프록시를 127.0.0.1에 바인딩해 시작하세요.</string>
     <string name="hint_sec_copy">2. 항목을 탭하면 복사됩니다</string>

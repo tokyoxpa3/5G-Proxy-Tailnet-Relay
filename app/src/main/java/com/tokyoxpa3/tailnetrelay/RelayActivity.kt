@@ -7,6 +7,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -21,6 +22,7 @@ import android.text.InputType
 import android.util.Log
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -34,12 +36,12 @@ class RelayActivity : Activity() {
     private lateinit var socksUserInput: EditText
     private lateinit var socksPassInput: EditText
     private lateinit var toggleButton: Button
+    private lateinit var autoStartCheck: CheckBox
     private lateinit var batteryButton: Button
     private lateinit var rotationModeButton: Button
     private lateinit var usageButton: Button
     private lateinit var rotateButton: Button
     private lateinit var statusText: TextView
-    private lateinit var tokenText: TextView
     private val handler = Handler(Looper.getMainLooper())
     private val refresher = object : Runnable {
         override fun run() {
@@ -87,6 +89,21 @@ class RelayActivity : Activity() {
             setText(prefs.getString("socks_pass", ""))
         }
         toggleButton = Button(this).apply { setOnClickListener { toggle() } }
+        // 開機自動啟動：以前是隱含行為（關機前在跑就還原），介面上完全看不到，
+        // 使用者不會知道 relay 能在開機後自己回來，也沒有辦法拒絕。
+        autoStartCheck = CheckBox(this).apply {
+            text = getString(R.string.label_auto_start)
+            textSize = 16f
+            setTextColor(primaryColor)
+            setPadding(0, 0, 0, 0)
+            // 預設 tint 在深色主題上偏暗，勾與不勾差別太小 → 明確指定強調色
+            buttonTintList = ColorStateList.valueOf(accentColor)
+            // 先設 isChecked 再掛 listener，避免初始化時多寫一次 prefs
+            isChecked = prefs.getBoolean(RelayService.PREF_AUTO_START, true)
+            setOnCheckedChangeListener { _, checked ->
+                prefs.edit().putBoolean(RelayService.PREF_AUTO_START, checked).apply()
+            }
+        }
         batteryButton = Button(this).apply {
             text = getString(R.string.btn_battery)
             setOnClickListener { requestBatteryExemption() }
@@ -108,14 +125,8 @@ class RelayActivity : Activity() {
             }
         }
         statusText = TextView(this).apply { setPadding(0, pad, 0, pad) }
-        // 控制 API 需要權杖（/rotate 會切飛航模式，不能只靠「連得進來」當授權）
-        tokenText = TextView(this).apply {
-            textSize = 12f
-            setPadding(0, pad, 0, pad)
-            setTextColor(secondaryColor)
-            isClickable = true
-            setOnClickListener { copy(getString(R.string.copy_token), ControlAuth.tokenFor(this@RelayActivity)) }
-        }
+        // 權杖只在下方「2. 點一下即可複製」那一段出現一次就好。先前這裡另外放了一個
+        // 可直接點的權杖，同一頁出現兩份同樣的祕密，既冗長也讓「該複製哪一個」變模糊。
 
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(portInput)
@@ -123,12 +134,18 @@ class RelayActivity : Activity() {
         root.addView(socksUserInput)
         root.addView(socksPassInput)
         root.addView(toggleButton)
+        root.addView(autoStartCheck)
+        root.addView(TextView(this).apply {
+            text = getString(R.string.hint_auto_start)
+            textSize = 12f
+            setTextColor(secondaryColor)
+            setPadding(0, 0, 0, pad / 2)
+        })
         root.addView(batteryButton)
         root.addView(rotationModeButton)
         root.addView(usageButton)
         root.addView(rotateButton)
         root.addView(statusText)
-        root.addView(tokenText)
         buildHintSection(root, pad)
         setContentView(ScrollView(this).apply {
             addView(root.apply { setPadding(pad, pad, pad, pad) })
@@ -279,7 +296,8 @@ class RelayActivity : Activity() {
 
     private fun toggle() {
         if (RelayService.isRunning) {
-            getSharedPreferences("relay", Context.MODE_PRIVATE).edit().putBoolean("relay_enabled", false).apply()
+            getSharedPreferences("relay", Context.MODE_PRIVATE).edit()
+                .putBoolean(RelayService.PREF_RELAY_ENABLED, false).apply()
             startService(Intent(this, RelayService::class.java).setAction(RelayService.ACTION_STOP))
         } else {
             val port = portInput.text.toString().toIntOrNull()?.takeIf { it in 1..65535 } ?: RelayService.DEFAULT_PORT
@@ -293,7 +311,7 @@ class RelayActivity : Activity() {
             getSharedPreferences("relay", Context.MODE_PRIVATE).edit()
                 .putInt("port", port)
                 .putInt("control_port", controlPort)
-                .putBoolean("relay_enabled", true)
+                .putBoolean(RelayService.PREF_RELAY_ENABLED, true)
                 .apply()
             startForegroundService(
                 Intent(this, RelayService::class.java)
@@ -341,7 +359,6 @@ class RelayActivity : Activity() {
             R.string.status_rotation, r.state, r.oldIp ?: "?", r.newIp ?: "?", r.attempts, r.error ?: ""
         )
         statusText.text = relayLine + rotateLine
-        tokenText.text = getString(R.string.control_token, ControlAuth.tokenFor(this))
         // 位址 / 連接埠 / 權杖可能變，每秒跟著狀態一起刷新
         copyRows.forEach { it.view.text = it.value() }
     }

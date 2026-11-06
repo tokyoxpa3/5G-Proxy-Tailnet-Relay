@@ -28,8 +28,11 @@ android {
         //        1.2.2 已交付實機，故圖示變動另開一個 versionCode。
         // 1.2.4：新增韓文介面（values-ko）。relay 由韓國貢獻者 bokukpark 發起，
         //        先前只有英 / 簡中 / 繁中，這次補齊韓文並附韓文商店截圖。
-        versionCode 7
-        versionName "1.2.4"
+        // 1.2.5：主畫面新增「重新開機後自動啟動中繼」勾選框。先前只有隱含規則
+        //        （關機前在跑就還原），使用者看不到也無法拒絕；現在與 5G Proxy Pro /
+        //        Client 同一套語意（開關 + 關機前仍在執行）。另移除頁面上重複的權杖區塊。
+        versionCode 8
+        versionName "1.2.5"
     }
 
     compileOptions {

@@ -69,6 +69,10 @@ relay silently falls back to the other two backends.
   bearer token.
 - Optionally rotates the cellular IP by toggling airplane mode, forcing the
   modem to re-attach.
+- Restores itself after a reboot, but only when **Start relay automatically after
+  a reboot** is ticked *and* the relay was still running when you shut down. Pressing
+  Stop keeps it stopped. The box is ticked by default, because this was already the
+  behaviour before the option existed.
 
 ## Limitations
 

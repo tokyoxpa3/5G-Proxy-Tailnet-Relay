@@ -53,8 +53,14 @@ class AirplaneAssistant : VoiceInteractionService() {
         active = this
         Log.i(TAG, "assistant ready")
         // 系統在開機、App 被殺或更新後都會重新綁定作用中的助理 —— 借此把使用者
-        // 先前開著的中繼自動拉回來，不必每次手動按 Start
-        val enabled = getSharedPreferences("relay", Context.MODE_PRIVATE).getBoolean("relay_enabled", false)
+        // 先前開著的中繼自動拉回來，不必每次手動按 Start。
+        //
+        // 這條路徑也必須看「重新開機後自動啟動」勾選框：開機時系統會重新綁定助理，
+        // 若這裡不看，使用者取消了勾選，relay 還是會在開機後被這條路徑拉起來 ——
+        // 勾選框就等於說謊。
+        val prefs = getSharedPreferences("relay", Context.MODE_PRIVATE)
+        val enabled = prefs.getBoolean(RelayService.PREF_AUTO_START, true) &&
+            prefs.getBoolean(RelayService.PREF_RELAY_ENABLED, false)
         if (enabled && !RelayService.isRunning) {
             try {
                 startForegroundService(Intent(this, RelayService::class.java).setAction(RelayService.ACTION_START))

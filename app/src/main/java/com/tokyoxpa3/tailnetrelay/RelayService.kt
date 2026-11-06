@@ -51,6 +51,14 @@ class RelayService : Service() {
         const val DEFAULT_PORT = 1080
         const val DEFAULT_CONTROL_PORT = 8081
 
+        // [開機自動啟動] 兩個鍵都存在 "relay" prefs。
+        // PREF_RELAY_ENABLED：使用者最後的意圖 —— 收到 START 設 true、按停止設 false，
+        //   所以「按過停止」的 relay 開機後不會被悄悄拉起來。
+        // PREF_AUTO_START：使用者開關（主畫面的勾選框）。**預設 true**，與 Pro / Client
+        //   的預設 false 不同，理由見 BootReceiver 的註解。
+        const val PREF_RELAY_ENABLED = "relay_enabled"
+        const val PREF_AUTO_START = "auto_start"
+
         @Volatile var rotator: IpRotator? = null
 
         @Volatile var isRunning = false

@@ -7,6 +7,8 @@
     <string name="hint_socks_pass">SOCKS5 password (only if the proxy requires auth)</string>
     <string name="btn_start">Start relay</string>
     <string name="btn_stop">Stop relay</string>
+    <string name="label_auto_start">Start relay automatically after a reboot</string>
+    <string name="hint_auto_start">Only if it was still running when you shut down. Pressing Stop keeps it stopped.</string>
     <string name="btn_battery">Disable battery optimization</string>
     <string name="btn_rotation_none">⚠ Set up IP rotation (tap to choose)</string>
     <string name="btn_rotation_shell">✅ OmniADB-Host ready</string>
@@ -29,7 +31,6 @@
     <string name="status_waiting">Running — waiting for a Tailscale address (is Tailscale connected?)</string>
     <string name="status_running">Running\nListening: %1$s\nSOCKS → 127.0.0.1:%2$d (active: %3$d)\nControl API: :%4$d</string>
     <string name="status_rotation">\n\nIP rotation: %1$s\n%2$s → %3$s (attempt %4$d) %5$s</string>
-    <string name="control_token">Control API token (tap to copy):\n%1$s</string>
     <string name="hint_sec_setup">1. Setup</string>
     <string name="hint_setup_body">1. In Tailscale, keep THIS app included (not excluded).\n2. In Tailscale, EXCLUDE your SOCKS5 proxy app so it can use cellular.\n3. Start that proxy on the port above, listening on 127.0.0.1.</string>
     <string name="hint_sec_copy">2. Tap any field to copy</string>
