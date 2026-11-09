@@ -15,3 +15,6 @@ keystore.properties
 
 # Local test output.
 .test-artifacts/
+
+# Local agent memory / project data (machine-specific, never publish)
+.workbuddy-ai/

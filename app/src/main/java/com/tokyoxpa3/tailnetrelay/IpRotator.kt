@@ -25,7 +25,22 @@ import java.util.concurrent.atomic.AtomicBoolean
  *   **零次中斷**，而且能在輪替過程中即時看到 `running → changed`。
  *   沒有 `WRITE_SECURE_SETTINGS` 時退回原本行為（Wi-Fi 會斷）。
  */
-class IpRotator(private val context: Context, private val socksPort: () -> Int) {
+class IpRotator(
+    private val context: Context,
+    private val socksPort: () -> Int,
+    /**
+     * 切射頻之前執行：把中繼上所有轉送中的連線關掉，讓上游代理回收綁在舊
+     * PDP context 的 target socket。回傳被切斷的連線數，寫進 /status 供查證。
+     * 由 RelayService 提供；輪替本身不需要知道連線是怎麼管理的。
+     */
+    private val beforeToggle: () -> Int = { 0 },
+    /**
+     * 蜂巢出口恢復、查到新公網 IP 之後執行：通知 5G Proxy Pro 把還綁在舊出口的
+     * 連線清掉。放在這裡而不是飛航前，是因為這時 Pro 的 native worker 才能立刻
+     * 用新 Network 服務重連進來的客戶端。
+     */
+    private val afterRecover: () -> Unit = {},
+) {
 
     companion object {
         private const val TAG = "IpRotator"
@@ -84,6 +99,8 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
         val finishedAt: Long = 0,
         /** 這輪是否把 Wi-Fi 從飛航的關閉清單裡拿掉（true = 遠端控制口全程沒斷）。 */
         val keptWifi: Boolean = false,
+        /** 切射頻前主動切斷的轉送連線數（避免下載卡在舊出口）。 */
+        val droppedConnections: Int = 0,
     )
 
     @Volatile var status = Status()
@@ -95,7 +112,7 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
         if (!running.compareAndSet(false, true)) return false
         status = Status(state = "running", startedAt = System.currentTimeMillis())
         Thread({
-            try { status = rotate(status) } catch (e: Exception) {
+            try { status = rotate(status, beforeToggle, afterRecover) } catch (e: Exception) {
                 Log.w(TAG, "rotation crashed", e)
                 status = status.copy(state = "failed", error = e.message ?: e.javaClass.simpleName)
             } finally {
@@ -140,7 +157,7 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
         return true
     }
 
-    private fun rotate(initial: Status): Status {
+    private fun rotate(initial: Status, beforeToggle: () -> Int, afterRecover: () -> Unit): Status {
         if (!AirplaneToggle.canToggle(context)) {
             return initial.copy(
                 state = "failed",
@@ -151,6 +168,14 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
                     "(WRITE_SECURE_SETTINGS alone does not toggle the radio on Android 15+)"
             )
         }
+        // ★ 先切斷舊連線，再動射頻。順序不能反：射頻一關，舊 PDP context 就消失，
+        //   綁在上面的 TCP 會進入長時間重傳而不是立刻 EOF。5G Proxy Pro 的
+        //   handleNetworkChange() 只把「新連線」導到新 Network、既有連線留給 worker
+        //   自然回收，所以必須由這一側把連線推一把，否則下載會卡在舊出口上好幾分鐘。
+        val dropped = try { beforeToggle() } catch (e: Exception) {
+            Log.w(TAG, "could not drop active connections before rotation", e)
+            0
+        }
         // 有 OmniADB-Host 時，請它幫本 App 取得 WRITE_SECURE_SETTINGS（冪等、
         // 一次性）。這樣整個換 IP 流程不必接電腦，也不必動使用者的數位助理。
         // 沒有 Host 時這行直接回 false，行為與原本相同。
@@ -160,7 +185,7 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
         // 沒有權限時回 null，行為與原本相同。
         val keptWifi = AirplaneToggle.keepWifiAlive(context) != null
         val oldIp = fetchPublicIp()
-        var s = initial.copy(oldIp = oldIp, keptWifi = keptWifi)
+        var s = initial.copy(oldIp = oldIp, keptWifi = keptWifi, droppedConnections = dropped)
         status = s
         for (attempt in 1..MAX_ATTEMPTS) {
             s = s.copy(attempts = attempt)
@@ -177,6 +202,11 @@ class IpRotator(private val context: Context, private val socksPort: () -> Int) 
             )
             val newIp = waitForPublicIp()
                 ?: return s.copy(state = "failed", error = "cellular egress did not recover in ${RECOVER_TIMEOUT_MS / 1000}s")
+            // 出口已通，請 Pro 把「換 IP 前就建立、還綁在舊 PDP context」的連線清掉。
+            // 即使這輪 IP 判定為 unchanged，射頻確實開關過，舊連線一樣該重整。
+            try { afterRecover() } catch (e: Exception) {
+                Log.w(TAG, "post-rotation proxy notice failed", e)
+            }
             s = s.copy(newIp = newIp)
             status = s
             if (oldIp == null || newIp != oldIp) return s.copy(state = "changed")

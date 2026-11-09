@@ -31,8 +31,9 @@ android {
         // 1.2.5：主畫面新增「重新開機後自動啟動中繼」勾選框。先前只有隱含規則
         //        （關機前在跑就還原），使用者看不到也無法拒絕；現在與 5G Proxy Pro /
         //        Client 同一套語意（開關 + 關機前仍在執行）。另移除頁面上重複的權杖區塊。
-        versionCode 8
-        versionName "1.2.5"
+        // 1.2.6：換 IP 不再需要開中繼；輪替前切斷舊連線、輪替後通知 5G Pro 重整出口。
+        versionCode 9
+        versionName "1.2.6"
     }
 
     compileOptions {

@@ -25,7 +25,7 @@
     <string name="btn_usage_access">允许用量访问（在 /status 中显示数据用量）</string>
     <string name="btn_usage_access_granted">✅ 已授予用量访问权限</string>
     <string name="btn_rotate">立即轮替 IP（飞航模式）</string>
-    <string name="toast_rotate_unavailable">轮替已在进行中，或中继尚未启动</string>
+    <string name="toast_rotate_unavailable">轮替已在进行中，或没有可用的切换方式</string>
     <string name="toast_port_conflict">SOCKS 端口与控制端口不能相同</string>
     <string name="status_stopped">已停止</string>
     <string name="status_waiting">运行中 —— 等待 Tailscale 地址（Tailscale 连上了吗？）</string>

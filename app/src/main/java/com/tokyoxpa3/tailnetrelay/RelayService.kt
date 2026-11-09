@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -59,7 +60,98 @@ class RelayService : Service() {
         const val PREF_RELAY_ENABLED = "relay_enabled"
         const val PREF_AUTO_START = "auto_start"
 
-        @Volatile var rotator: IpRotator? = null
+        /**
+         * [IP 輪替] 輪替器**不屬於中繼服務的生命週期**。
+         *
+         * 換 IP 只需要兩件事：切射頻、經 127.0.0.1 的 SOCKS5 問公網 IP。兩者都與
+         * 「有沒有在 tailnet 位址上監聽」無關，所以以前把它放在 onStartCommand 裡
+         * 建立，害得主畫面的輪替按鈕在中繼沒開時被禁用，是純粹的實作耦合。
+         *
+         * 改成 process 單例：Activity（中繼關閉也能按）與控制 API 共用同一個實例、
+         * 同一份狀態；服務重啟也不會重置進行中的輪替。
+         */
+        @Volatile private var rotatorInstance: IpRotator? = null
+
+        fun rotator(context: Context): IpRotator {
+            rotatorInstance?.let { return it }
+            return synchronized(this) {
+                rotatorInstance ?: run {
+                    val app = context.applicationContext
+                    // 從沒開過中繼、直接按輪替時也要收拾上次異常退出留下的射頻設定。
+                    // cleanupIfStale 冪等，服務啟動時再呼叫一次不會有副作用。
+                    AirplaneToggle.cleanupIfStale(app)
+                    IpRotator(app, {
+                        app.getSharedPreferences("relay", Context.MODE_PRIVATE)
+                            .getInt("port", DEFAULT_PORT)
+                    }, { dropActiveConnections() }, { notifyProxyOfRotation(app) })
+                        .also { rotatorInstance = it }
+                }
+            }
+        }
+
+        /** 一條轉送中的連線：client（tailnet 端）與 upstream（127.0.0.1 的 SOCKS5）。 */
+        private data class Pipe(val client: Socket, val upstream: Socket)
+
+        /** 所有進行中的轉送連線。放在 companion，輪替器不必持有服務實例也能切斷它們。 */
+        private val livePipes = ConcurrentHashMap.newKeySet<Pipe>()
+
+        /**
+         * 換 IP 之前把所有轉送中的連線切斷。
+         *
+         * 飛航模式會讓舊的 PDP context 消失，但已建立的 TCP 連線不會立刻 EOF：
+         * 5G Proxy Pro 的 handleNetworkChange() 刻意「只換新連線用的 Network、
+         * 既有連線讓 worker 自然回收」，而 Relay 這條 byte pipe 也不會自己斷。
+         * 結果是下載連線綁在舊出口上持續重傳、cwnd 縮到最小，看起來就是
+         * 「沒斷線但速度變很慢」，而且可能卡到 TCP 逾時才恢復。
+         *
+         * 主動關掉 Relay 端的 socket 會讓 Pro 的 native worker 收到 EOF、回收綁在
+         * 舊 Network 的 target socket；客戶端隨即重連，新連線自然走新出口。
+         *
+         * @return 被切斷的連線數
+         */
+        fun dropActiveConnections(): Int {
+            val pipes = livePipes.toList()
+            var dropped = 0
+            for (pipe in pipes) {
+                closeQuietly(pipe.client)
+                closeQuietly(pipe.upstream)
+                dropped++
+            }
+            // 各 handle() 的 finally 會再 remove 一次（no-op），但先清空可避免
+            // 卡在 half-close 等待的連線被下一輪輪替重複計算。
+            livePipes.clear()
+            Log.i(TAG, "dropped $dropped relay connection(s) before IP rotation")
+            return dropped
+        }
+
+        fun closeQuietly(c: java.io.Closeable) {
+            try { c.close() } catch (e: IOException) {}
+        }
+
+        // 5G Proxy Pro 的 RotationBridgeProvider：單一 method 的窄介面，只接受
+        // 來自本 App package 的呼叫。Pro 沒裝時 contentResolver.call 會拋，靜默略過。
+        private const val PROXY_ROTATION_AUTHORITY = "com.tokyoxpa3.androidproxy.rotation"
+        private const val PROXY_ROTATION_METHOD = "ip_rotation_completed"
+        private const val PROXY_ROTATION_KEY_RESET = "reset_connections"
+
+        /**
+         * 換 IP 完成後通知 5G Proxy Pro 清理舊出口連線。
+         *
+         * Pro 自己會在 NetworkCallback.onAvailable 收到新 Network 時清理，但短飛航後
+         * 有些 ROM 會復用同一個 Network 物件（只換 IP），onAvailable 不會再觸發；
+         * Relay 是唯一知道「剛剛做了一輪輪替」的人，由這個明確通知補上盲點。
+         * 通知失敗不影響輪替結果 —— 它只是額外的連線清理。
+         */
+        fun notifyProxyOfRotation(context: Context) {
+            try {
+                val uri = Uri.parse("content://$PROXY_ROTATION_AUTHORITY")
+                val result = context.contentResolver.call(uri, PROXY_ROTATION_METHOD, null, null)
+                val reset = result?.getInt(PROXY_ROTATION_KEY_RESET, 0) ?: 0
+                Log.i(TAG, "5G Pro rotation notice accepted; reset=$reset egress connection(s)")
+            } catch (e: Exception) {
+                Log.d(TAG, "5G Pro rotation notice unavailable (proxy not installed or older): ${e.message}")
+            }
+        }
 
         @Volatile var isRunning = false
         @Volatile var listenAddrs: List<String> = emptyList()
@@ -92,10 +184,9 @@ class RelayService : Service() {
         stopRelay()
         port = newPort
         controlPort = newControlPort
-        // 輪替可能跨越服務重建，埠號一律從設定讀，不抓本實例的欄位
-        if (rotator == null) rotator = IpRotator(applicationContext) {
-            applicationContext.getSharedPreferences("relay", Context.MODE_PRIVATE).getInt("port", DEFAULT_PORT)
-        }
+        // 控制 API 與主畫面共用同一個輪替器；埠號一律從設定讀，不抓本實例的欄位。
+        // 服務重建時這裡只會取回既有實例，不會重置進行中的輪替。
+        rotator(applicationContext)
         startRelay()
         return START_STICKY
     }
@@ -232,14 +323,13 @@ class RelayService : Service() {
                 lines.add(line)
             }
             val req = ControlHttp.parseHead(lines)
-            val rot = rotator
+            val rot = rotator(applicationContext)
             val (code, body) = when {
                 req == null -> 400 to json("error" to "bad request")
                 !ControlAuth.isAuthorized(applicationContext, req) -> 401 to json(
                     "error" to "unauthorized",
                     "hint" to "send 'Authorization: Bearer <token>' or '?token=<token>'; the token is shown in the app"
                 )
-                rot == null -> 503 to json("error" to "not ready")
                 // 先檢查前置條件再回 202：否則呼叫端拿到「已接受」，實際上這個請求
                 // 100% 會失敗（實測：1 ms 後 state 就變 failed），只能靠輪詢才發現。
                 isRotateRequest(req) && !AirplaneToggle.canToggle(applicationContext) ->
@@ -299,12 +389,17 @@ class RelayService : Service() {
         // 這輪是否把 Wi-Fi 從飛航的關閉清單拿掉：
         // true = 只有蜂巢中斷，Wi-Fi 與 tailnet 全程可用（遠端可持續查 /status）
         "kept_wifi" to s.keptWifi,
+        // 切射頻前主動切斷的轉送連線數：0 代表當時沒有人在下載。
+        // >0 代表那些連線已被引導去重連新出口，而不是卡在舊 PDP context 上慢慢重傳。
+        "dropped_connections" to s.droppedConnections,
         // 保留舊欄位，避免既有客戶端壞掉
         "assistant_active" to AirplaneAssistant.isActive
     )
 
     private fun handle(client: Socket) {
         val upstream = Socket()
+        val pipe = Pipe(client, upstream)
+        livePipes.add(pipe)
         activeConnections.incrementAndGet()
         try {
             client.tcpNoDelay = true
@@ -320,6 +415,7 @@ class RelayService : Service() {
         } catch (e: IOException) {
             Log.d(TAG, "relay connection ended: ${e.message}")
         } finally {
+            livePipes.remove(pipe)
             closeQuietly(client)
             closeQuietly(upstream)
             activeConnections.decrementAndGet()
@@ -342,9 +438,5 @@ class RelayService : Service() {
 
     private fun shutdownOutput(s: Socket) {
         try { if (!s.isClosed) s.shutdownOutput() } catch (e: IOException) {}
-    }
-
-    private fun closeQuietly(c: java.io.Closeable) {
-        try { c.close() } catch (e: IOException) {}
     }
 }

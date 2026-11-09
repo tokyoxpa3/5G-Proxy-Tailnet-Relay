@@ -74,6 +74,19 @@ relay silently falls back to the other two backends.
   Stop keeps it stopped. The box is ticked by default, because this was already the
   behaviour before the option existed.
 
+## IP rotation and the relay
+
+Rotation does **not** require the relay to be running. The in-app *Rotate IP now*
+button works at any time; only the HTTP `/rotate` endpoint needs the relay,
+because that listener is bound to the tailnet address.
+
+Before the radio is toggled, all in-flight forwarded connections are closed.
+Otherwise they stay bound to the old PDP context: 5G Proxy Pro switches only
+**new** connections to the new cellular `Network` and lets existing ones drain,
+so a download in progress would keep retransmitting on the dead gateway and look
+extremely slow instead of reconnecting cleanly. `/status` reports
+`dropped_connections` so you can confirm how many connections were reset.
+
 ## Limitations
 
 - **TCP only.** Plain UDP ASSOCIATE is not implemented, so QUIC, some games and

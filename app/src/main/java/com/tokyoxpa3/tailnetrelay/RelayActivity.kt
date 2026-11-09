@@ -120,7 +120,13 @@ class RelayActivity : Activity() {
             text = getString(R.string.btn_rotate)
             setOnClickListener {
                 saveCredentials()
-                val started = RelayService.rotator?.start() ?: false
+                // 換 IP 不需要開中繼：只切射頻、再經 127.0.0.1 的 SOCKS5 問公網 IP。
+                // rotator 是 process 單例，中繼沒啟動時一樣拿得到。
+                if (!AirplaneToggle.canToggle(this@RelayActivity)) {
+                    showRotationSetup()
+                    return@setOnClickListener
+                }
+                val started = RelayService.rotator(applicationContext).start()
                 if (!started) Toast.makeText(this@RelayActivity, R.string.toast_rotate_unavailable, Toast.LENGTH_SHORT).show()
             }
         }
@@ -338,7 +344,10 @@ class RelayActivity : Activity() {
             else -> R.string.btn_rotation_none
         })
         rotationModeButton.isClickable = backend != AirplaneToggle.BACKEND_SHELL
-        rotateButton.isEnabled = running && AirplaneToggle.canToggle(this)
+        // 不再要求 running：中繼只是「讓別人連進來」，跟「讓手機換一個 5G 出口」無關。
+        // 只擋「沒有可用的切射頻後端」與「上一輪還在跑」兩種情況。
+        val rot = RelayService.rotator(applicationContext)
+        rotateButton.isEnabled = AirplaneToggle.canToggle(this) && rot.status.state != "running"
         usageButton.text = getString(
             if (DeviceStatus.hasUsageAccess(this)) R.string.btn_usage_access_granted else R.string.btn_usage_access
         )
@@ -354,8 +363,8 @@ class RelayActivity : Activity() {
                 controlPortInput.text.toString().toIntOrNull() ?: RelayService.DEFAULT_CONTROL_PORT
             )
         }
-        val r = RelayService.rotator?.status
-        val rotateLine = if (r == null || r.state == "idle") "" else getString(
+        val r = rot.status
+        val rotateLine = if (r.state == "idle") "" else getString(
             R.string.status_rotation, r.state, r.oldIp ?: "?", r.newIp ?: "?", r.attempts, r.error ?: ""
         )
         statusText.text = relayLine + rotateLine

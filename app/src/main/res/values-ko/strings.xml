@@ -25,7 +25,7 @@
     <string name="btn_usage_access">사용 정보 접근 허용 (/status에 데이터 사용량 표시)</string>
     <string name="btn_usage_access_granted">✅ 사용 정보 접근 허용됨</string>
     <string name="btn_rotate">지금 IP 로테이션 (비행기 모드)</string>
-    <string name="toast_rotate_unavailable">이미 로테이션 중이거나 릴레이가 시작되지 않았습니다</string>
+    <string name="toast_rotate_unavailable">이미 로테이션 중이거나 사용 가능한 전환 방식이 없습니다</string>
     <string name="toast_port_conflict">SOCKS 포트와 제어 포트는 달라야 합니다</string>
     <string name="status_stopped">중지됨</string>
     <string name="status_waiting">실행 중 — Tailscale 주소를 기다리는 중 (Tailscale이 연결되어 있나요?)</string>

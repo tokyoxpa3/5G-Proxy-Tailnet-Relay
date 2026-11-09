@@ -43,8 +43,11 @@
     -->
     <queries>
         <provider android:authorities="com.omniadb.host.relay" />
+        <!-- 換 IP 完成後通知 5G Proxy Pro 清掉舊出口連線（Android 11+ 套件可見性） -->
+        <provider android:authorities="com.tokyoxpa3.androidproxy.rotation" />
         <!-- 讓「開啟 OmniADB-Host」按鈕能拿到 launcher intent（Android 11+ 套件可見性） -->
         <package android:name="com.omniadb.host" />
+        <package android:name="com.tokyoxpa3.androidproxy" />
     </queries>
 
     <application

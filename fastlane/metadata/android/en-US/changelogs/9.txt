@@ -1,0 +1,5 @@
+- Fixed: "Rotate IP now" no longer requires the relay service to be running. The IP rotator is now a process-wide singleton, so the on-device button works on its own. The HTTP /rotate control API still needs the relay listener, because that listener is bound to the Tailscale address
+- Fixed: in-flight forwarded connections used to stay attached to the old cellular gateway after a rotation, which showed up as downloads that never disconnect but crawl. They are now closed before the radio toggle, so clients reconnect on the new egress
+- New: once the new public IP is confirmed, the relay notifies 5G Proxy Pro through a narrow, UID-checked ContentProvider so Pro can retire its own stale egress sockets. The call is skipped gracefully when Pro is absent or older
+- New: /status now reports dropped_connections, so a rotation can be verified from the control API
+- Docs: clarified the relationship between IP rotation and the relay in both READMEs
